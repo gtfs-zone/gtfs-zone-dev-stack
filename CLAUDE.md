@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `music-student` is the local development orchestration repo for the GTFS-RT project. It consolidates all services into a single `docker compose up --build` without requiring host.docker.internal networking hacks.
 
-The project consists of four application repos:
-- `redis-gtfs-rt-api` — FastAPI public API + admin app, Alembic migrations
+The project consists of five application repos:
+- `railroad-club` — shared SQLModel models + Alembic migrations
+- `redis-gtfs-rt-api` — FastAPI public API + admin app
 - `schedule-foamer` — Celery worker + beat scheduler
 - `trip-updogger` — MQTT→GTFS-RT Trip Updates bridge
 - `vehicle-poser` — MQTT→Redis vehicle position bridge
@@ -25,6 +26,7 @@ docker compose up --build
 
 **Build context paths** — where to find local repo checkouts:
 ```
+RAILROAD_CLUB_DIR=../railroad-club
 REDIS_GTFS_RT_API_DIR=../redis-gtfs-rt-api
 SCHEDULE_FOAMER_DIR=../schedule-foamer
 TRIP_UPDOGGER_DIR=../trip-updogger
@@ -33,6 +35,7 @@ VEHICLE_POSER_DIR=../vehicle-poser
 
 **Image overrides** — optional, to pull from a registry instead of building:
 ```
+RAILROAD_CLUB_IMAGE=ghcr.io/org/railroad-club:latest
 REDIS_GTFS_RT_API_IMAGE=ghcr.io/org/redis-gtfs-rt-api:latest
 ```
 
