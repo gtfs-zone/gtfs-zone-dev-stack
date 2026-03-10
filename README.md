@@ -39,8 +39,8 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 ## Dev Credentials
 
 **Admin login** (via http://localhost:4180):
-- alice / password
-- bob / password
+- alice@local / password
+- bob@local / password
 
 **PostgreSQL**: `postgres` / `mysecretpassword`
 
