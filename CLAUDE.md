@@ -26,7 +26,6 @@ docker compose up --build
 
 **Build context paths** — where to find local repo checkouts:
 ```
-RAILROAD_CLUB_DIR=../railroad-club
 REDIS_GTFS_RT_API_DIR=../redis-gtfs-rt-api
 SCHEDULE_FOAMER_DIR=../schedule-foamer
 TRIP_UPDOGGER_DIR=../trip-updogger
@@ -35,7 +34,6 @@ VEHICLE_POSER_DIR=../vehicle-poser
 
 **Image overrides** — optional, to pull from a registry instead of building:
 ```
-RAILROAD_CLUB_IMAGE=ghcr.io/org/railroad-club:latest
 REDIS_GTFS_RT_API_IMAGE=ghcr.io/org/redis-gtfs-rt-api:latest
 ```
 
