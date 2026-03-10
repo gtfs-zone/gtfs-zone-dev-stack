@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The project consists of five application repos:
 - `railroad-club` — shared SQLModel models + Alembic migrations
-- `redis-gtfs-rt-api` — FastAPI public API + admin app
+- `cafe-car` — FastAPI public API + admin app
 - `schedule-foamer` — Celery worker + beat scheduler
 - `trip-updogger` — MQTT→GTFS-RT Trip Updates bridge
 - `vehicle-poser` — MQTT→Redis vehicle position bridge
@@ -26,7 +26,7 @@ docker compose up --build
 
 **Build context paths** — where to find local repo checkouts:
 ```
-REDIS_GTFS_RT_API_DIR=../redis-gtfs-rt-api
+CAFE_CAR_DIR=../cafe-car
 SCHEDULE_FOAMER_DIR=../schedule-foamer
 TRIP_UPDOGGER_DIR=../trip-updogger
 VEHICLE_POSER_DIR=../vehicle-poser
@@ -34,7 +34,7 @@ VEHICLE_POSER_DIR=../vehicle-poser
 
 **Image overrides** — optional, to pull from a registry instead of building:
 ```
-REDIS_GTFS_RT_API_IMAGE=ghcr.io/org/redis-gtfs-rt-api:latest
+CAFE_CAR_IMAGE=ghcr.io/org/cafe-car:latest
 ```
 
 ## Remote Image Workflow
