@@ -28,12 +28,13 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 
 | Port | Service |
 |------|---------|
+| 4180 | Admin app via oauth2-proxy |
+| 8000 | GTFS-RT public API |
+| 1883 | MQTT broker (NanoMQ) |
 | 5432 | PostgreSQL |
 | 6379 | Redis |
-| 8000 | GTFS-RT public API |
+| 5555 | Flower (Celery UI, no auth) |
 | 8001 | Admin app (direct, no auth) |
-| 1883 | MQTT broker (NanoMQ) |
-| 4180 | Admin app via oauth2-proxy |
 | 5556 | Dex OIDC provider |
 
 ## Dev Credentials
