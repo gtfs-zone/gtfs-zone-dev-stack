@@ -112,6 +112,17 @@ services:
       redis:
         condition: service_healthy
 
+  flower:
+    image: mher/flower:master
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/3
+      CELERY_RESULT_BACKEND: redis://redis:6379/4
+    depends_on:
+      redis:
+        condition: service_healthy
+
   nanomq:
     image: emqx/nanomq:latest
     ports:

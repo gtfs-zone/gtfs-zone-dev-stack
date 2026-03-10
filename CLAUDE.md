@@ -55,6 +55,7 @@ Leave the variable unset to build from the local `_DIR` path (default behavior).
 | admin | 8001 | SQLAdmin interface (direct, no auth) |
 | celery-worker | — | Schedule-foamer Celery worker |
 | celery-beat | — | Schedule-foamer Celery beat scheduler |
+| flower | 5555 | Celery monitoring web UI |
 | nanomq | 1883 | MQTT broker (auth delegated to api) |
 | dex | 5556 | OIDC provider (static dev users) |
 | oauth2-proxy | 4180 | oauth2-proxy in front of admin |
