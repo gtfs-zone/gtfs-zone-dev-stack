@@ -49,6 +49,13 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:mysecretpassword@db:5432/postgres
       REDIS_URL: redis://redis:6379/1
       SESSION_SECRET_KEY: dev-secret-key
+    volumes:
+      - nanomq_passwd:/run/nanomq
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 5s
+      retries: 10
+      start_period: 10s
     depends_on:
       db:
         condition: service_healthy
@@ -70,6 +77,8 @@ services:
       REDIS_URL: redis://redis:6379/1
       SESSION_SECRET_KEY: dev-secret-key
       DEBUG: "true"
+    volumes:
+      - nanomq_passwd:/run/nanomq
     depends_on:
       db:
         condition: service_healthy
@@ -125,14 +134,20 @@ services:
 
   nanomq:
     image: emqx/nanomq:latest
+    restart: on-failure
+    entrypoint: ["/bin/sh", "/etc/nanomq-entrypoint.sh"]
     ports:
       - "1883:1883"
     environment:
       NANOMQ_CONF_PATH: /etc/nanomq.conf
     volumes:
       - ./dev/nanomq/nanomq.conf:/etc/nanomq.conf:ro
+      - ./dev/nanomq/acl.conf:/etc/nanomq-acl.conf:ro
+      - ./dev/nanomq/entrypoint.sh:/etc/nanomq-entrypoint.sh:ro
+      - nanomq_passwd:/run/nanomq:ro
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
   dex:
     image: ghcr.io/dexidp/dex:v2.45.0
@@ -174,6 +189,8 @@ services:
     restart: on-failure
     environment:
       MQTT_BROKER: tcp://nanomq:1883
+      MQTT_USERNAME: public
+      MQTT_PASSWORD: public
       REDIS_URL: redis://redis:6379/1
       DATABASE_URL: postgresql+psycopg2://postgres:mysecretpassword@db:5432/postgres
     depends_on:
@@ -188,6 +205,8 @@ services:
     restart: on-failure
     environment:
       MQTT_BROKER: tcp://nanomq:1883
+      MQTT_USERNAME: public
+      MQTT_PASSWORD: public
       REDIS_URL: redis://redis:6379/1
     depends_on:
       - nanomq
@@ -196,3 +215,4 @@ services:
 volumes:
   db_data:
   redis_data:
+  nanomq_passwd:
