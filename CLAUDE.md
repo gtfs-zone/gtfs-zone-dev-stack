@@ -69,3 +69,7 @@ Leave the variable unset to build from the local `_DIR` path (default behavior).
 - DB 1: api + trip-updogger + vehicle-poser (vehicle position data)
 - DB 3: Celery broker (schedule-foamer tasks)
 - DB 4: Celery result backend
+
+## Rules
+
+- Never add `Co-Authored-By: Claude ...` trailers to commit messages.
