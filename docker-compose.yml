@@ -69,7 +69,7 @@ services:
     build:
       context: ${CAFE_CAR_DIR:-../cafe-car}
     restart: on-failure
-    command: fastapi run src/app/admin_main.py --port 8001
+    command: fastapi run src/cafe_car/admin_main.py --port 8001
     ports:
       - "8001:8001"
     environment:
@@ -112,7 +112,7 @@ services:
     image: ${SCHEDULE_FOAMER_IMAGE:-schedule-foamer:local}
     build:
       context: ${SCHEDULE_FOAMER_DIR:-../schedule-foamer}
-    command: celery -A worker.celery_app beat -l info
+    command: celery -A worker.celery_app beat -l info --schedule=/app/beat/celerybeat-schedule
     restart: on-failure
     environment:
       CELERY_BROKER_URL: redis://redis:6379/3
