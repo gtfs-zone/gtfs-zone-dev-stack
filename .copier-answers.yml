@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier; do not edit manually.
-_commit: 264eee6
+_commit: 0164ffb
 _src_path: /home/maxtkc/Documents/bare-chassis
 description: Local development orchestration for the GTFS-RT project — consolidates
     all services into a single docker compose up.
