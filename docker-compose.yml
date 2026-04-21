@@ -212,6 +212,20 @@ services:
       - nanomq
       - redis
 
+  hell-gate-bridge:
+    image: ${HELL_GATE_BRIDGE_IMAGE:-hell-gate-bridge:local}
+    build:
+      context: ${HELL_GATE_BRIDGE_DIR:-../hell-gate-bridge}
+    restart: on-failure
+    environment:
+      MQTT_BROKER: tcp://nanomq:1883
+      MQTT_USERNAME: public
+      MQTT_PASSWORD: public
+      POLL_INTERVAL: 15
+      ROUTE_FILTER:
+    depends_on:
+      - nanomq
+
 volumes:
   db_data:
   redis_data:

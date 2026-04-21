@@ -62,6 +62,7 @@ Leave the variable unset to build from the local `_DIR` path (default behavior).
 | oauth2-proxy | 4180 | oauth2-proxy in front of admin |
 | trip-updogger | — | MQTT→GTFS-RT Trip Updates bridge |
 | vehicle-poser | — | MQTT→Redis vehicle position bridge |
+| hell-gate-bridge | — | Amtrak live tracker→MQTT position bridge |
 
 ## Redis DB Allocation
 
