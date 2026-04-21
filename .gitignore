@@ -1,1 +1,5 @@
 .env
+.envrc
+*.log
+.DS_Store
+
