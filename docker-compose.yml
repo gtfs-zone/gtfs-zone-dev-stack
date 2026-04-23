@@ -49,6 +49,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:mysecretpassword@db:5432/postgres
       REDIS_URL: redis://redis:6379/1
       SESSION_SECRET_KEY: dev-secret-key
+      CORS_ALLOWED_ORIGINS: '["http://localhost:8080"]'
     volumes:
       - nanomq_passwd:/run/nanomq
     healthcheck:
@@ -219,10 +220,13 @@ services:
     restart: on-failure
     environment:
       MQTT_BROKER: tcp://nanomq:1883
-      MQTT_USERNAME: public
-      MQTT_PASSWORD: public
+      MQTT_USERNAME: amtrakdriver
+      MQTT_PASSWORD: amtrakpassword
       POLL_INTERVAL: 15
       ROUTE_FILTER:
+      GTFS_PATH: /data/amtrak_gtfs.zip
+    volumes:
+      - ./amtrak_gtfs.zip:/data/amtrak_gtfs.zip:ro
     depends_on:
       - nanomq
 
