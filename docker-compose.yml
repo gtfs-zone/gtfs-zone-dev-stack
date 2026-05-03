@@ -226,9 +226,8 @@ services:
       MQTT_PASSWORD: amtrakpassword
       POLL_INTERVAL: 15
       ROUTE_FILTER:
-      GTFS_PATH: /data/amtrak_gtfs.zip
     volumes:
-      - ./amtrak_gtfs.zip:/data/amtrak_gtfs.zip:ro
+      - hell_gate_beat:/app/beat
     depends_on:
       - nanomq
 
@@ -236,3 +235,4 @@ volumes:
   db_data:
   redis_data:
   nanomq_passwd:
+  hell_gate_beat:
