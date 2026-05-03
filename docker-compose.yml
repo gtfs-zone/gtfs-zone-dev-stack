@@ -209,9 +209,11 @@ services:
       MQTT_USERNAME: public
       MQTT_PASSWORD: public
       REDIS_URL: redis://redis:6379/1
+      DATABASE_URL: postgresql+psycopg2://postgres:mysecretpassword@db:5432/postgres
     depends_on:
       - nanomq
       - redis
+      - migrate
 
   hell-gate-bridge:
     image: ${HELL_GATE_BRIDGE_IMAGE:-hell-gate-bridge:local}
