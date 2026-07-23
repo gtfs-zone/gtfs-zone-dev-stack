@@ -50,6 +50,10 @@ services:
       REDIS_URL: redis://redis:6379/1
       SESSION_SECRET_KEY: dev-secret-key
       CORS_ALLOWED_ORIGINS: '["http://localhost:8080"]'
+      TRACCAR_URL: http://traccar:8082
+      TRACCAR_EMAIL: admin@local
+      TRACCAR_PASSWORD: admin
+      TRACCAR_CLIENT_BASE: http://localhost:5055
     volumes:
       - nanomq_passwd:/run/nanomq
     healthcheck:
@@ -78,6 +82,10 @@ services:
       REDIS_URL: redis://redis:6379/1
       SESSION_SECRET_KEY: dev-secret-key
       DEBUG: "true"
+      TRACCAR_URL: http://traccar:8082
+      TRACCAR_EMAIL: admin@local
+      TRACCAR_PASSWORD: admin
+      TRACCAR_CLIENT_BASE: http://localhost:5055
     volumes:
       - nanomq_passwd:/run/nanomq
     depends_on:
@@ -92,7 +100,7 @@ services:
     image: ${SCHEDULE_FOAMER_IMAGE:-schedule-foamer:local}
     build:
       context: ${SCHEDULE_FOAMER_DIR:-../schedule-foamer}
-    command: celery -A worker.celery_app worker -l info
+    command: celery -A schedule_foamer.celery_app worker -l info
     restart: on-failure
     environment:
       DATABASE_URL: postgresql+psycopg2://postgres:mysecretpassword@db:5432/postgres
@@ -113,7 +121,7 @@ services:
     image: ${SCHEDULE_FOAMER_IMAGE:-schedule-foamer:local}
     build:
       context: ${SCHEDULE_FOAMER_DIR:-../schedule-foamer}
-    command: celery -A worker.celery_app beat -l info --schedule=/app/beat/celerybeat-schedule
+    command: celery -A schedule_foamer.celery_app beat -l info --schedule=/app/beat/celerybeat-schedule
     restart: on-failure
     environment:
       CELERY_BROKER_URL: redis://redis:6379/3
@@ -214,6 +222,34 @@ services:
       - nanomq
       - redis
       - migrate
+
+  traccar-db-init:
+    image: postgres:16-alpine
+    restart: "no"
+    environment:
+      PGPASSWORD: mysecretpassword
+    command: >
+      sh -c "psql -h db -U postgres -tc \"SELECT 1 FROM pg_database WHERE datname='traccar'\" | grep -q 1
+      || createdb -h db -U postgres traccar"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  traccar:
+    image: traccar/traccar:6.14.5
+    restart: on-failure
+    ports:
+      - "8082:8082"
+      - "5055:5055"
+    volumes:
+      - ./dev/traccar/traccar.xml:/opt/traccar/conf/traccar.xml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      traccar-db-init:
+        condition: service_completed_successfully
+      dex:
+        condition: service_started
 
   hell-gate-bridge:
     image: ${HELL_GATE_BRIDGE_IMAGE:-hell-gate-bridge:local}
