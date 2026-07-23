@@ -242,14 +242,34 @@ over-build.
 
 De-risk cutover by running both pipelines into Redis and comparing before flipping.
 
-- [ ] Run OwnTracks/vehicle-poser(old) **and** Traccar/shim concurrently. Since
+- [x] Run OwnTracks/vehicle-poser(old) **and** Traccar/shim concurrently. Since
       both would write `vehicle:*`, isolate: point the new shim at a **shadow key
       prefix** or shadow Redis DB, or run the shim read-only-compare, to avoid
-      clobbering the live feed during comparison.
-- [ ] Compare position freshness, coordinates, and resolved `trip_id` for the same
+      clobbering the live feed during comparison. → **Isolation = shadow key
+      prefix** (same Redis DB 1, chosen over a shadow DB for simplicity + zero
+      cafe-car impact). Added `VEHICLE_KEY_PREFIX` env to `vehicle-poser`
+      (default `vehicle`; the shim now writes `{prefix}:{username}:{deviceId}`).
+      `docker-compose.dualrun.yml` override sets it to `shadow:vehicle`. Safe
+      because cafe-car scans `vehicle:{u}:*`, which does **not** match a
+      `shadow:vehicle:...` key (the char after `vehicle` is `:` vs `_`/nothing).
+      **Verified end-to-end on the live stack**: with the override, a POSTed
+      Traccar forward landed at `shadow:vehicle:dualrun-test:9` and `vehicle:*`
+      stayed empty; without the override the default still writes `vehicle:*`.
+- [~] Compare position freshness, coordinates, and resolved `trip_id` for the same
       driver across both paths; measure QR setup time, iOS background reliability,
-      and route-switch friction with a small real operator.
+      and route-switch friction with a small real operator. → **Tooling built**:
+      `scripts/compare_pipelines.py` (read-only) diffs live `vehicle:*` vs shadow
+      `shadow:vehicle:*` per driver — reports `live_age`/`shadow_age`, `Δcoord_m`
+      (haversine), and `trip_id` agreement; `--json` for machine output. Verified
+      against seeded keys. **Remaining (manual, real operator)**: QR setup time,
+      iOS background reliability, route-switch friction — field measurements the
+      script can't produce.
 - [ ] Sign-off criteria to proceed to cutover (accuracy + reliability parity).
+      → **Criteria documented** (README "Dual-run comparison" + the script's
+      footer): both feeds present per active driver, small `Δcoord_m`, and
+      matching `trip_id` across a real route, plus acceptable iOS background
+      reliability. **Actual sign-off is a human gate** on a real dual-run —
+      cannot be checked off here.
 
 **Gotchas**
 
