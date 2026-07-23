@@ -1,8 +1,12 @@
 # Traccar vehicle-location pipeline
 
-Vehicle positions are ingested through **Traccar**, replacing the retired
-OwnTracks → MQTT path. Redis is the stable seam, so `cafe-car`, `trip-updogger`,
-and `schedule-foamer` are unchanged.
+Driver vehicle positions are ingested through **Traccar**, replacing the retired
+OwnTracks → MQTT path. Redis is the stable seam, so `cafe-car` and
+`schedule-foamer` are unchanged.
+
+> Amtrak positions/trip-updates and the `simulate_trip.py` sim do **not** go
+> through Traccar — they POST directly to cafe-car's `/ingest/*` API. NanoMQ and
+> `trip-updogger` were retired in Phase 7.
 
 ```
 Traccar Client app (phone)

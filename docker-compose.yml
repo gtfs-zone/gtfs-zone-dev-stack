@@ -55,8 +55,6 @@ services:
       TRACCAR_PASSWORD: admin
       TRACCAR_CLIENT_BASE: http://localhost:5055
       INGEST_API_TOKEN: dev-ingest-token
-    volumes:
-      - nanomq_passwd:/run/nanomq
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 5s
@@ -87,8 +85,6 @@ services:
       TRACCAR_EMAIL: admin@local
       TRACCAR_PASSWORD: admin
       TRACCAR_CLIENT_BASE: http://localhost:5055
-    volumes:
-      - nanomq_passwd:/run/nanomq
     depends_on:
       db:
         condition: service_healthy
@@ -142,23 +138,6 @@ services:
       redis:
         condition: service_healthy
 
-  nanomq:
-    image: emqx/nanomq:latest
-    restart: on-failure
-    entrypoint: ["/bin/sh", "/etc/nanomq-entrypoint.sh"]
-    ports:
-      - "1883:1883"
-    environment:
-      NANOMQ_CONF_PATH: /etc/nanomq.conf
-    volumes:
-      - ./dev/nanomq/nanomq.conf:/etc/nanomq.conf:ro
-      - ./dev/nanomq/acl.conf:/etc/nanomq-acl.conf:ro
-      - ./dev/nanomq/entrypoint.sh:/etc/nanomq-entrypoint.sh:ro
-      - nanomq_passwd:/run/nanomq:ro
-    depends_on:
-      api:
-        condition: service_healthy
-
   dex:
     image: ghcr.io/dexidp/dex:v2.45.0
     volumes:
@@ -191,22 +170,6 @@ services:
     depends_on:
       - dex
       - admin
-
-  trip-updogger:
-    image: ${TRIP_UPDOGGER_IMAGE:-trip-updogger:local}
-    build:
-      context: ${TRIP_UPDOGGER_DIR:-../trip-updogger}
-    restart: on-failure
-    environment:
-      MQTT_BROKER: tcp://nanomq:1883
-      MQTT_USERNAME: public
-      MQTT_PASSWORD: public
-      REDIS_URL: redis://redis:6379/1
-      DATABASE_URL: postgresql+psycopg2://postgres:mysecretpassword@db:5432/postgres
-    depends_on:
-      - nanomq
-      - redis
-      - migrate
 
   vehicle-poser:
     image: ${VEHICLE_POSER_IMAGE:-vehicle-poser:local}
@@ -259,9 +222,6 @@ services:
       context: ${HELL_GATE_BRIDGE_DIR:-../hell-gate-bridge}
     restart: on-failure
     environment:
-      MQTT_BROKER: tcp://nanomq:1883
-      MQTT_USERNAME: amtrakdriver
-      MQTT_PASSWORD: amtrakpassword
       POLL_INTERVAL: 15
       ROUTE_FILTER:
       CAFE_CAR_INGEST_URL: http://api:8000
@@ -275,5 +235,4 @@ services:
 volumes:
   db_data:
   redis_data:
-  nanomq_passwd:
   hell_gate_beat:

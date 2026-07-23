@@ -8,8 +8,8 @@ Local development environment for the GTFS-RT project. Runs all services with a 
    ```bash
    git clone <redis-gtfs-rt-api>
    git clone <schedule-foamer>
-   git clone <trip-updogger>
    git clone <vehicle-poser>
+   git clone <hell-gate-bridge>
    git clone <music-student>
    ```
 
@@ -30,7 +30,6 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 |------|---------|
 | 4180 | Admin app via oauth2-proxy |
 | 8000 | GTFS-RT public API |
-| 1883 | MQTT broker (NanoMQ) |
 | 5432 | PostgreSQL |
 | 6379 | Redis |
 | 5555 | Flower (Celery UI, no auth) |
@@ -47,10 +46,10 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 
 **PostgreSQL**: `postgres` / `mysecretpassword`
 
-**MQTT**: internal only. Vehicle positions no longer flow over MQTT — drivers are
-provisioned into **Traccar** (see below). NanoMQ is still used by the Amtrak
-path: `hell-gate-bridge` publishes to `owntracks/{amtrakdriver}/{trip_id}` and
-`trip-updogger` subscribes to `owntracks/+/+`.
+**Realtime ingest**: there is no MQTT broker anymore. Driver positions flow
+through **Traccar** → `vehicle-poser` shim → Redis (see below). Amtrak positions
+and trip-updates, and the `simulate_trip.py` sim, POST directly to cafe-car's
+`/ingest/*` API (shared bearer token `dev-ingest-token`).
 
 **Traccar** (http://localhost:8082): on a fresh database, register the first
 account — it becomes admin. "Login with OpenID" goes through Dex (e.g.
@@ -71,6 +70,15 @@ for the architecture, auth/data model, gotchas, and retention.
 
 Traccar persists every fix to the `traccar` Postgres DB and has no built-in
 retention — prune with `scripts/traccar_retention.sql` (see docs).
+
+## Amtrak & simulated trips (cafe-car ingest API)
+
+Producers that already know their own `trip_id` — `hell-gate-bridge` (Amtrak)
+and `cafe-car/scripts/simulate_trip.py` — POST straight to cafe-car's
+`/ingest/position` and `/ingest/trip-update` (bearer token `INGEST_API_TOKEN`).
+The trip-update endpoint carries Amtrak's **own** per-stop predicted arrival/
+departure times, which cafe-car serves as multiple `stop_time_update`s. This
+replaced the old NanoMQ + `trip-updogger` recompute path (both retired).
 
 ### Dual-run tooling (historical)
 

@@ -6,12 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `music-student` is the local development orchestration repo for the GTFS-RT project. It consolidates all services into a single `docker compose up --build` without requiring host.docker.internal networking hacks.
 
-The project consists of five application repos:
+The project consists of these application repos:
 - `railroad-club` — shared SQLModel models + Alembic migrations
-- `cafe-car` — FastAPI public API + admin app
+- `cafe-car` — FastAPI public API + admin app (also hosts the `/ingest/*` seam)
 - `schedule-foamer` — Celery worker + beat scheduler
-- `trip-updogger` — MQTT→GTFS-RT Trip Updates bridge
 - `vehicle-poser` — Traccar HTTP-forward→Redis vehicle position bridge
+- `hell-gate-bridge` — Amtrak live tracker→cafe-car ingest (positions + trip-updates)
+
+`trip-updogger` (MQTT→GTFS-RT Trip Updates bridge) was retired in Phase 7 along
+with the NanoMQ broker — trip-updates now come straight from producers over HTTP.
 
 ## Running Locally
 
@@ -57,19 +60,17 @@ Leave the variable unset to build from the local `_DIR` path (default behavior).
 | celery-worker | — | Schedule-foamer Celery worker |
 | celery-beat | — | Schedule-foamer Celery beat scheduler |
 | flower | 5555 | Celery monitoring web UI |
-| nanomq | 1883 | MQTT broker (auth delegated to api) |
 | dex | 5556 | OIDC provider (static dev users) |
 | oauth2-proxy | 4180 | oauth2-proxy in front of admin |
-| trip-updogger | — | MQTT→GTFS-RT Trip Updates bridge |
 | vehicle-poser | 8080 (internal) | Traccar `json` HTTP-forward receiver→Redis vehicle position bridge |
-| hell-gate-bridge | — | Amtrak live tracker→MQTT position bridge |
+| hell-gate-bridge | — | Amtrak live tracker→cafe-car `/ingest/*` (positions + trip-updates) |
 | traccar-db-init | — | Creates the `traccar` database in Postgres, exits |
 | traccar | 8082, 5055 | Traccar GPS tracking server — live vehicle-location source (8082 = web/REST, 5055 = phone client protocol). See `docs/traccar.md` |
 
 ## Redis DB Allocation
 
 - DB 0: oauth2-proxy session storage
-- DB 1: api + trip-updogger + vehicle-poser (vehicle position data)
+- DB 1: api + vehicle-poser (vehicle position + trip-update data)
 - DB 3: Celery broker (schedule-foamer tasks)
 - DB 4: Celery result backend
 

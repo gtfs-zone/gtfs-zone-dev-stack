@@ -1,0 +1,12 @@
+- generic [ref=f7e6]:
+  - heading "Log in to Your Account" [level=2] [ref=f7e7]
+  - generic [ref=f7e8]:
+    - generic [ref=f7e9]:
+      - generic [ref=f7e10]: Email Address
+      - textbox "Email Address" [active] [ref=f7e11]:
+        - /placeholder: email address
+    - generic [ref=f7e12]:
+      - generic [ref=f7e13]: Password
+      - textbox "Password" [ref=f7e14]:
+        - /placeholder: password
+    - button "Login" [ref=f7e15] [cursor=pointer]
