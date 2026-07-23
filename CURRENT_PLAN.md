@@ -194,13 +194,43 @@ Confirm the human-facing story without hardening. Managers log into Traccar via
 Dex OIDC (already wired); drivers never log in (device-only). Document, don't
 over-build.
 
-- [ ] Verify Dex OIDC login → Traccar auto-creates a regular user (PoC-verified);
-      confirm managers can see the devices they need.
-- [ ] Document the model: **Admin = us, Manager = bus company (Dex OIDC), Driver =
-      device (no account)**. Record the deferred gap: Dex `staticPasswords` emit no
-      `groups` claim, so `openid.adminGroup` can't auto-grant admin — internal
-      admin login stays the admin path for now.
-- [ ] Decide + document the `registration` flag posture (see Phase 1 gotcha).
+- [x] Verify Dex OIDC login → Traccar auto-creates a regular user (PoC-verified);
+      confirm managers can see the devices they need. → **Re-verified on the live
+      stack.** Server flags: `registration:true`, `openIdEnabled:true`,
+      `openIdForce:false`. Logging in as a brand-new Dex user (`bob@local`) through
+      "Login with OpenID" auto-created a regular Traccar user. **Key finding on
+      visibility: an OIDC-provisioned manager sees ZERO devices by default** —
+      Traccar scopes device visibility per-user, and our fleet devices
+      (`test123`, `e2edriver`) are owned by the internal `admin@local` because
+      cafe-car creates them via REST as that account. Confirmed both ways: fresh
+      `bob` sees no devices; `alice` (userId 2) is linked to only the one device she
+      registered herself (`some-id`), not the admin-owned REST devices. So **managers
+      do NOT automatically see the fleet** — see the deferred gap below.
+- [x] Document the model: **Admin = us, Manager = bus company (Dex OIDC), Driver =
+      device (no account)**. → documented below and in `TRACCAR_POC_FINDINGS.md`
+      ("Auth & data model"). Deferred gaps recorded: (1) Dex `staticPasswords` emit
+      no `groups` claim, so `openid.adminGroup` can't auto-grant admin — internal
+      `admin@local` login stays the admin path; (2) **device-permission gap** —
+      REST-created devices are admin-owned, so managers see nothing until devices are
+      explicitly shared with them (grant `POST /api/permissions {userId, deviceId}`,
+      or create devices as/assign them to the manager, or promote the manager to a
+      Traccar admin). Not built now; noted for the real fleet layer.
+- [x] Decide + document the `registration` flag posture (see Phase 1 gotcha). →
+      **Decision: keep `registration=true`.** It is the switch OIDC needs to
+      auto-provision manager users on first login; turning it off breaks the whole
+      Dex-manager story. The tradeoff (it also exposes self-service account
+      registration in the web UI) is acceptable in dev and behind the public
+      Traccar hostname's normal protections in prod. Prod hardening path if that
+      tradeoff becomes unacceptable: set `openid.force=true` to force SSO + hide the
+      internal register/login form, and gate account creation at Dex. Deferred.
+
+**Data model (documented)**
+
+| Role | Identity | Auth | Traccar object |
+|---|---|---|---|
+| **Admin** (us) | `admin@local` | internal password | administrator user; owns REST-created devices |
+| **Manager** (bus company) | Dex OIDC identity | Dex SSO ("Login with OpenID") | regular user, auto-provisioned on first login |
+| **Driver** | device `uniqueId = username` | none (device-only, QR-provisioned) | Device, no user account |
 
 **Gotchas**
 
