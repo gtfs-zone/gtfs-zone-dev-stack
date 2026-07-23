@@ -11,7 +11,7 @@ The project consists of five application repos:
 - `cafe-car` — FastAPI public API + admin app
 - `schedule-foamer` — Celery worker + beat scheduler
 - `trip-updogger` — MQTT→GTFS-RT Trip Updates bridge
-- `vehicle-poser` — MQTT→Redis vehicle position bridge
+- `vehicle-poser` — Traccar HTTP-forward→Redis vehicle position bridge
 
 ## Running Locally
 
@@ -61,8 +61,10 @@ Leave the variable unset to build from the local `_DIR` path (default behavior).
 | dex | 5556 | OIDC provider (static dev users) |
 | oauth2-proxy | 4180 | oauth2-proxy in front of admin |
 | trip-updogger | — | MQTT→GTFS-RT Trip Updates bridge |
-| vehicle-poser | — | MQTT→Redis vehicle position bridge |
+| vehicle-poser | 8080 (internal) | Traccar `json` HTTP-forward receiver→Redis vehicle position bridge |
 | hell-gate-bridge | — | Amtrak live tracker→MQTT position bridge |
+| traccar-db-init | — | Creates the `traccar` database in Postgres, exits |
+| traccar | 8082, 5055 | Traccar GPS tracking server — live vehicle-location source (8082 = web/REST, 5055 = phone client protocol). See `docs/traccar.md` |
 
 ## Redis DB Allocation
 

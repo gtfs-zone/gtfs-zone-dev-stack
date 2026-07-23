@@ -47,7 +47,10 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 
 **PostgreSQL**: `postgres` / `mysecretpassword`
 
-**MQTT**: any Driver username/password configured in the admin app.
+**MQTT**: internal only. Vehicle positions no longer flow over MQTT — drivers are
+provisioned into **Traccar** (see below). NanoMQ is still used by the Amtrak
+path: `hell-gate-bridge` publishes to `owntracks/{amtrakdriver}/{trip_id}` and
+`trip-updogger` subscribes to `owntracks/+/+`.
 
 **Traccar** (http://localhost:8082): on a fresh database, register the first
 account — it becomes admin. "Login with OpenID" goes through Dex (e.g.
@@ -58,25 +61,21 @@ the first admin exists). Dex-federated users cannot become admin automatically
 127.0.0.1 on the host (`/etc/hosts` entry) so the browser can reach the
 issuer URL.
 
-## Dual-run comparison (OwnTracks → Traccar migration)
+## Vehicle locations (Traccar)
 
-De-risk the OwnTracks→Traccar cutover by running both pipelines into the same
-Redis DB and comparing before flipping cafe-car onto the Traccar feed. The
-Traccar shim writes to a **shadow key namespace** so it never clobbers the live
-`vehicle:*` keys cafe-car serves.
+Vehicle positions are ingested through **Traccar** → `vehicle-poser` HTTP shim →
+Redis (`vehicle:{username}:{deviceId}`, 60s TTL) → cafe-car. This replaced the
+retired OwnTracks → MQTT path. Drivers are provisioned with a QR / config URL
+generated per Driver in the cafe-car admin app. See **[docs/traccar.md](docs/traccar.md)**
+for the architecture, auth/data model, gotchas, and retention.
 
-```bash
-# Start the stack with the shim writing shadow:vehicle:* instead of vehicle:*
-docker compose -f docker-compose.yml -f docker-compose.dualrun.yml up --build
+Traccar persists every fix to the `traccar` Postgres DB and has no built-in
+retention — prune with `scripts/traccar_retention.sql` (see docs).
 
-# With the live OwnTracks feed also writing vehicle:*, compare the two per driver
-python scripts/compare_pipelines.py --redis-url redis://localhost:6379/1
-```
+### Dual-run tooling (historical)
 
-`scripts/compare_pipelines.py` is read-only. Per driver it reports position
-freshness (`live_age`/`shadow_age`), coordinate delta (`Δcoord_m`), and whether
-the resolved `trip_id` agrees. Aim for **both feeds present, small Δcoord, and
-matching trip_id** across a real route before cutover. Setup time, iOS
-background reliability, and route-switch friction are judged with a real
-operator, not this script. The isolation knob is `VEHICLE_KEY_PREFIX` on
-`vehicle-poser` (default `vehicle`; `shadow:vehicle` in the override).
+The migration was de-risked by running both pipelines into Redis under separate
+key namespaces and comparing. Retained for reference:
+`docker-compose.dualrun.yml` points the shim at `shadow:vehicle:*` (via
+`VEHICLE_KEY_PREFIX`), and `scripts/compare_pipelines.py` (read-only) diffs the
+live vs shadow feeds per driver.

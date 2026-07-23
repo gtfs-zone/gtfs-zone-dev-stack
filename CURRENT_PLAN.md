@@ -282,19 +282,52 @@ De-risk cutover by running both pipelines into Redis and comparing before flippi
 
 Flip to Traccar as the source of truth and remove the OwnTracks path.
 
-- [ ] Point the shim at the real `vehicle:*` keys; make Traccar the live source.
-- [ ] Remove OwnTracks-specific pieces: the old MQTT subscriber code path is
+- [x] Point the shim at the real `vehicle:*` keys; make Traccar the live source.
+      → **Already the default and the sole writer** — `VEHICLE_KEY_PREFIX`
+      defaults to `vehicle`, and the old OwnTracks vehicle-poser subscriber was
+      replaced wholesale in Phase 2, so nothing else writes `vehicle:*`. Cutover =
+      running the default stack (no `docker-compose.dualrun.yml` override). No
+      compose change was needed.
+- [x] Remove OwnTracks-specific pieces: the old MQTT subscriber code path is
       already gone (Phase 2); remove any OwnTracks MQTT **auth** wiring that only
       served vehicle-poser (verify cafe-car MQTT auth isn't shared with
-      trip-updogger/hell-gate before deleting).
-- [ ] **Keep** NanoMQ (trip-updogger + hell-gate still use it). Confirm nothing
-      else depended on the OwnTracks user/topic before pruning ACLs.
-- [ ] Update `README.md`, `CLAUDE.md` service map, and `vehicle-poser` README to
+      trip-updogger/hell-gate before deleting). → **Key discovery: almost nothing
+      was vehicle-poser-only.** The `owntracks/#` topic + NanoMQ ACL is *shared* —
+      `hell-gate-bridge` publishes `owntracks/{amtrakdriver}/{trip_id}` and
+      `trip-updogger` subscribes `owntracks/+/+` for the Amtrak feed. So the ACL
+      and topic namespace **stay**. cafe-car's per-Driver entries in the NanoMQ
+      `passwd` file (`passwd_file.py`) are now vestigial for position-publishing,
+      but `"public":"public"` there is still required by trip-updogger, and the
+      per-driver creds are harmless — left as an optional cross-repo follow-up
+      rather than churn cafe-car. The only OwnTracks-specific thing in this repo
+      (the vehicle-poser MQTT subscriber) was already deleted in Phase 2.
+- [x] **Keep** NanoMQ (trip-updogger + hell-gate still use it). Confirm nothing
+      else depended on the OwnTracks user/topic before pruning ACLs. → Confirmed
+      via grep: `trip-updogger` (`owntracks/+/+` subscribe) and `hell-gate-bridge`
+      (`owntracks/{username}/{trip_id}` publish) both depend on it. **No ACLs
+      pruned.**
+- [x] Update `README.md`, `CLAUDE.md` service map, and `vehicle-poser` README to
       reflect the HTTP-forward architecture. Retire `TRACCAR_POC_FINDINGS.md` once
-      folded into real docs.
-- [ ] Decide Traccar **retention** policy — Traccar persists every fix to the
+      folded into real docs. → README's dual-run-migration section replaced with a
+      "Vehicle locations (Traccar)" section + historical dual-run note; MQTT creds
+      note corrected (drivers use Traccar, MQTT is Amtrak-internal). CLAUDE.md
+      service map/app list updated (vehicle-poser = HTTP-forward, traccar = live
+      source). `vehicle-poser` README was **already** on the HTTP-forward
+      architecture from Phase 2 (no change). `TRACCAR_POC_FINDINGS.md` folded into
+      new **`docs/traccar.md`** (architecture + auth/data model + gotchas +
+      retention) and deleted.
+- [x] Decide Traccar **retention** policy — Traccar persists every fix to the
       `traccar` Postgres DB; add a cleanup/retention job and size storage (this is
-      new durable data we didn't keep before).
+      new durable data we didn't keep before). → **Confirmed Traccar 6.14.5 has NO
+      config-file retention key** (checked the config-file docs). Added
+      `scripts/traccar_retention.sql` (default 30 days, `-v days=<n>`) that deletes
+      old `tc_positions` while preserving each device's latest/motion position
+      (`tc_devices.positionid`/`motionpositionid`) and event anchors
+      (`tc_events.positionid`) — no DB-level FK exists in this version, but those
+      references are preserved for correctness. **Verified it runs clean against
+      the live `traccar` DB.** Decision: dev = manual prune (volume is wiped on
+      `down -v` anyway); prod = schedule the SQL (cron/pg_cron/CronJob), which is
+      Terraform scope (out of scope here). Documented in `docs/traccar.md`.
 
 **Gotchas**
 

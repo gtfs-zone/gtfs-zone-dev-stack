@@ -17,6 +17,11 @@ staticClients:
     redirectURIs:
       - http://localhost:4180/oauth2/callback
     name: oauth2-proxy
+  - id: traccar
+    secret: dev-traccar-secret
+    redirectURIs:
+      - http://localhost:8082/api/session/openid/callback
+    name: Traccar
 
 enablePasswordDB: true
 staticPasswords:
