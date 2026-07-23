@@ -54,6 +54,7 @@ services:
       TRACCAR_EMAIL: admin@local
       TRACCAR_PASSWORD: admin
       TRACCAR_CLIENT_BASE: http://localhost:5055
+      INGEST_API_TOKEN: dev-ingest-token
     volumes:
       - nanomq_passwd:/run/nanomq
     healthcheck:
@@ -263,10 +264,13 @@ services:
       MQTT_PASSWORD: amtrakpassword
       POLL_INTERVAL: 15
       ROUTE_FILTER:
+      CAFE_CAR_INGEST_URL: http://api:8000
+      INGEST_API_TOKEN: dev-ingest-token
     volumes:
       - hell_gate_beat:/app/beat
     depends_on:
-      - nanomq
+      api:
+        condition: service_healthy
 
 volumes:
   db_data:

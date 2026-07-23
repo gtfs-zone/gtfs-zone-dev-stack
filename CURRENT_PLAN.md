@@ -64,8 +64,41 @@ provisioning UX and a real device/fleet layer underneath.
 `traccar-db-init` (creates `traccar` DB in shared Postgres), Dex `traccar` static
 client. `traccar/traccar:latest` is **unpinned** — pin early.
 
-**NanoMQ stays** — still used by `trip-updogger` and `hell-gate-bridge` (Amtrak).
-Only the OwnTracks/vehicle-poser MQTT path is being removed.
+**NanoMQ removal (Phases 6–7)** — the OwnTracks/vehicle-poser MQTT path is gone
+(Phase 2/5). The *only* remaining NanoMQ traffic is the Amtrak feed:
+`hell-gate-bridge` publishes `owntracks/{amtrakdriver}/{trip_id}` → `trip-updogger`
+recomputes a delay → `trip_update:{trip_id}`. Keeping NanoMQ just for this single
+producer/consumer pair was the wrong call. Phases 6–7 move Amtrak onto a direct
+**cafe-car HTTP ingest** seam (positions now, Amtrak's own stop predictions later),
+retire `trip-updogger`'s recompute, and delete NanoMQ.
+
+**Key findings that drive the phasing:**
+- `hell-gate-bridge/amtrak.py` already parses full per-stop
+  `scheduled/estimated/actual` arrival & departure times into `TrainStop`/
+  `StopTime`, but `publisher.py` **discards all of it** and publishes only a
+  position; `trip-updogger` then re-derives a worse delay geometrically. The
+  "send Amtrak's real predictions" goal is mostly a matter of *stopping the
+  throwaway*.
+- **Post-cutover regression**: nothing writes `vehicle:*` for Amtrak anymore (the
+  old vehicle-poser subscriber that did is gone). And `cafe-car`
+  `gtfs_rt.py:80` emits a trip update **only when a matching `vehicle:*` key
+  exists** — so Amtrak trip-updates are likely being suppressed too. Fixing the
+  position path (Phase 6) restores both.
+- **Driver `trip_update:*` is local-sim-only** (resolved). After the Traccar
+  cutover the vehicle-poser shim writes `vehicle:*` but nothing computes driver
+  `trip_update:*`; the only thing that ever exercised that path is
+  `cafe-car/scripts/simulate_trip.py`, which publishes OwnTracks positions to
+  **MQTT** → trip-updogger computes a delay. The sim's *position* path is already
+  broken post-cutover too (it publishes MQTT, but nothing writes `vehicle:*` from
+  MQTT anymore). So trip-updogger has **nothing worth preserving**: the sim already
+  computes its own `delay_seconds`, so it can POST positions + trip-updates
+  straight to the new ingest API. Porting `simulate_trip.py` to ingest is what lets
+  trip-updogger + NanoMQ go.
+
+**This repo is local-testing-only** — no uptime concern, so the phases below cut
+straight over (no dual-emitter / keep-MQTT-alive step). Both `hell-gate-bridge`
+(Amtrak) and `simulate_trip.py` (drivers) move onto the same cafe-car HTTP ingest
+seam; MQTT, NanoMQ, and trip-updogger all delete together in Phase 7.
 
 ---
 
@@ -335,6 +368,136 @@ Flip to Traccar as the source of truth and remove the OwnTracks path.
   first (`trip-updogger`, `hell-gate-bridge`).
 - The `traccar` DB lives in the shared `db_data` volume; ensure prod backups/
   `prevent_destroy` cover it before this is real (Terraform, out of scope here).
+
+## Phase 6 — cafe-car ingest API (positions) + Amtrak position path
+
+Stand up the direct HTTP ingest seam and move **positions** onto it (both Amtrak
+and the sim), fixing the dropped-`vehicle:*` regression. No dual-emitter step —
+local-testing-only, so hell-gate and the sim just switch over. NanoMQ still runs
+at the end of this phase because trip-updogger is deleted in Phase 7. Chosen home:
+a **new ingest router in cafe-car** (owns the Redis contract, sits next to the
+serving code).
+
+- [x] New `cafe_car/routers/ingest.py` mounted under `/ingest`, guarded by a
+      shared bearer token. Add `ingest_api_token: str | None` to `settings.py`
+      (mirror the Traccar token pattern) and an `Authorization`-header check
+      helper (reuse the `internal.py` gating style; 403 on mismatch/absent).
+      → `_check_auth` uses `secrets.compare_digest` against `Bearer <token>`;
+      **unset token = closed (403), not open**. Mounted in `main.py`
+      (`include_in_schema=settings.debug`, like `internal`). Verified live: no
+      token → 403, wrong token → 403, correct token → 200.
+- [x] `POST /ingest/position` accepting an explicit-`trip_id` body
+      `{vehicle_id, trip_id, lat, lon, bearing?, speed?, timestamp, route_id?}`
+      and writing the **exact** existing record shape to
+      `vehicle:{vehicle_id}:{slug}` with the **60s TTL** (byte-for-byte the
+      contract in `gtfs_rt.py` + the vehicle-poser shim). No `resolve_driver_trip`
+      call — Amtrak already knows its `trip_id` (this is why cafe-car, not the
+      Traccar shim, is the right home). → **slug = `trip_id`** (chosen so one
+      `vehicle_id` — Amtrak's shared `amtrakdriver` — maps many concurrent trains
+      to distinct `vehicle:amtrakdriver:{trip_id}` keys, matching cafe-car's
+      `vehicle:{username}:*` scan). `bearing`/`speed` always emitted (may be
+      `null`); `route_id` omitted from the record when absent. Verified TTL=60.
+- [x] Wire `INGEST_API_TOKEN` into the `api` service in `docker-compose.yml` and
+      into the `hell-gate-bridge` service env (`CAFE_CAR_INGEST_URL` +
+      `INGEST_API_TOKEN`). → dev token `dev-ingest-token`; hell-gate
+      `CAFE_CAR_INGEST_URL: http://api:8000`. Also flipped hell-gate's
+      `depends_on` from `nanomq` → `api` (`condition: service_healthy`).
+- [x] hell-gate-bridge: replace the MQTT publish in `publisher.py` with an httpx
+      position POST to cafe-car (new `ingest.py`). Pass the already-resolved
+      `trip_id`, `lat/lon`, `cog`→bearing, `vel`→speed (convert to m/s to match the
+      contract), `tst`→timestamp. → `publish_positions` now takes the shared
+      `httpx.AsyncClient`; speed converts **mph→m/s** (`0.44704`, was mph→kph for
+      MQTT). `main.py` dropped the `aiomqtt.Client` wrapper + reconnect loop
+      entirely. `config.vehicle_id` (env `INGEST_VEHICLE_ID`, defaults to
+      `mqtt_username` = `amtrakdriver`). **`aiomqtt` dep + `MQTT_*` config stay
+      until Phase 7** per plan, but nothing imports/uses them now.
+- [x] Port `cafe-car/scripts/simulate_trip.py`'s position publish to
+      `POST /ingest/position`. Dropped `paho-mqtt` (→ `httpx`) + all MQTT/TLS args;
+      added `--ingest-url`/`--token`. Per-thread `httpx.Client`; body carries
+      `route_id` too. (The trip-update half of the sim moves in Phase 7.)
+- [x] Verify: Amtrak train **and** a simulated trip → cafe-car
+      `POST /ingest/position` → `redis-cli -n 1 GET vehicle:*` shows the records →
+      `vehicle_positions.pb` shows both. Confirm the driver Traccar path is
+      untouched. → **Verified on the live stack.** hell-gate published 111 trains
+      (POSTs all `200 OK`), Redis held e.g.
+      `vehicle:amtrakdriver:286843 = {"driver":"amtrakdriver","trip_id":"286843",
+      "lat":43.65,"lon":-79.38,"bearing":null,"speed":0.0,"timestamp":...}`, and
+      the `amtrak` feed's `vehicle_positions.pb` served **49 entities** (regression
+      fixed). Sim (`--driver westdriver`) wrote `vehicle:westdriver:WCCWB` via the
+      same endpoint. Driver Traccar path (vehicle-poser shim) untouched — still
+      running, no code change.
+
+**Gotchas**
+- Keep the `vehicle:*` record shape identical to the shim's — `driver` field name,
+  `speed` in m/s, epoch `timestamp`. cafe-car's serving reads those exact keys.
+- `vehicle_id` for Amtrak is the old `mqtt_username` (`amtrakdriver`) so the feed's
+  `Driver` row still matches cafe-car's `vehicle:{driver.username}:*` scan. Don't
+  invent a new identity or the serving loop won't find it.
+- Auth is a **shared bearer token**, service-to-service — same trust level as the
+  Traccar shim. Don't reuse the Traccar token; separate secret.
+
+## Phase 7 — Amtrak rich trip-updates via ingest; retire trip-updogger + NanoMQ
+
+Stop the throwaway: hell-gate emits Amtrak's **own** per-stop predictions to a new
+trip-update ingest endpoint, cafe-car serves them directly, `trip-updogger`'s
+Amtrak recompute is removed, and NanoMQ is deleted.
+
+- [ ] `POST /ingest/trip-update` in `ingest.py`: accept a rich body
+      `{trip_id, vehicle_id, timestamp, stop_time_updates: [{stop_id|stop_sequence,
+      arrival_time?, arrival_delay?, departure_time?, departure_delay?,
+      schedule_relationship?}]}` and write it to `trip_update:{trip_id}`. This
+      **supersedes** trip-updogger's single-delay record shape — bump the record
+      to carry a list of stop updates.
+- [ ] Update cafe-car `gtfs_rt.py::trip_updates` to emit **multiple**
+      `stop_time_update`s from the richer record (arrival/departure times or
+      delays per stop), not one hardcoded `delay`. Decide whether trip-update
+      emission stays gated on a live `vehicle:*` key or is driven off
+      `trip_update:*` directly — Amtrak now supplies both, but decoupling is more
+      correct (a prediction is valid without a fresh fix). Keep backward-compat if
+      any producer still writes the old single-delay shape, or migrate all
+      producers.
+- [ ] hell-gate-bridge: map parsed `TrainStop`/`StopTime` → GTFS stops. Resolve
+      Amtrak station codes / `train_num` to the feed's `GtfsStop`/`trip_id` (via
+      the existing `GtfsResolver` + `TripAlias`), build `stop_time_updates` from
+      `estarr/estdep` (or `actual` where present), and POST to
+      `/ingest/trip-update`. Then **drop `aiomqtt`** entirely — positions +
+      trip-updates now both go over HTTP.
+- [ ] Remove the MQTT publish path from hell-gate (`publisher.py` MQTT calls,
+      `aiomqtt` dep, `MQTT_*` config in `config.py`).
+- [ ] Port the trip-update half of `simulate_trip.py` to
+      `POST /ingest/trip-update`: it already computes `delay_seconds` and knows the
+      `stop_idx`, so emit the current stop's delay directly (build a
+      `stop_time_updates` entry) — no server-side recompute needed. After this the
+      sim uses ingest for both position and trip-update.
+- [ ] Decommission `trip-updogger`: with both Amtrak and the sim off MQTT, it has
+      **no remaining producers**. Confirm via grep, then remove the
+      `trip-updogger` service from `docker-compose.yml` (and archive the repo /
+      note it).
+- [ ] Delete NanoMQ: remove the `nanomq` service, `nanomq_passwd` volume, and the
+      `dev/nanomq/` config from `docker-compose.yml`; drop the `nanomq_passwd`
+      mounts from `api`/`admin`; remove `MQTT_*` env from all services.
+- [ ] Remove now-dead cafe-car MQTT-auth machinery: `passwd_file.py`,
+      `regenerate_passwd_file()` calls in `main.py` + `admin/views.py`, and the
+      `Driver.password` usage that only fed the NanoMQ passwd file (verify nothing
+      else reads it). Cross-repo cleanup — coordinate with cafe-car.
+- [ ] Update `README.md`, `CLAUDE.md` service map (drop nanomq + trip-updogger
+      rows), and `docs/traccar.md` to reflect the HTTP-only ingest architecture.
+- [ ] Verify end-to-end: Amtrak train → cafe-car ingest (position + trip-update)
+      → `vehicle_positions.pb` + `trip_updates.pb` both correct **with real Amtrak
+      predicted times**, NanoMQ container gone, no MQTT references remain.
+
+**Gotchas**
+- The station-code → GTFS-stop mapping is the hard part of the Amtrak
+  trip-update: Amtrak uses station codes (`CBN`, etc.) and its own `train_num`;
+  the feed uses GTFS `stop_id`/`trip_id`. Reuse `GtfsResolver`/`TripAlias`; expect
+  unmatched stops and skip them rather than failing the whole update.
+- Changing the `trip_update:*` record shape is a **contract break** — update the
+  producer, the serving code, and any test fixtures together, or version the shape.
+- Don't delete `passwd_file.py` until confirming the NanoMQ `"public":"public"`
+  entry it emits has no remaining consumer (it existed for trip-updogger's
+  subscribe auth — which is going away in this same phase).
+- `Driver.password` is a railroad_club model field; deleting the passwd-file
+  writer doesn't require a schema migration, but note the field is now vestigial.
 
 ---
 
