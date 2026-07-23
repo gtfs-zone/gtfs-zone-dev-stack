@@ -213,13 +213,12 @@ services:
       context: ${VEHICLE_POSER_DIR:-../vehicle-poser}
     restart: on-failure
     environment:
-      MQTT_BROKER: tcp://nanomq:1883
-      MQTT_USERNAME: public
-      MQTT_PASSWORD: public
+      HTTP_PORT: 8080
       REDIS_URL: redis://redis:6379/1
       DATABASE_URL: postgresql+psycopg2://postgres:mysecretpassword@db:5432/postgres
+    expose:
+      - "8080"
     depends_on:
-      - nanomq
       - redis
       - migrate
 
@@ -249,6 +248,8 @@ services:
       traccar-db-init:
         condition: service_completed_successfully
       dex:
+        condition: service_started
+      vehicle-poser:
         condition: service_started
 
   hell-gate-bridge:

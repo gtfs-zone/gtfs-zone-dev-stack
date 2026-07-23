@@ -136,25 +136,43 @@ Traccar's `json` position forward, resolves `trip_id` via driver-rules, and writ
 the **exact existing** `vehicle:{username}:{deviceId}` record with a 60s TTL —
 so cafe-car/trip-updogger/schedule-foamer need zero changes.
 
-- [ ] Rewrite `vehicle-poser` as a tiny HTTP server (FastAPI/aiohttp) exposing
+- [x] Rewrite `vehicle-poser` as a tiny HTTP server (FastAPI/aiohttp) exposing
       e.g. `POST /forward`. Keep its Redis + `create_engine` + `resolve_driver_trip`
-      wiring; drop `aiomqtt` and the `owntracks/+/+` loop.
-- [ ] On each POST: read `device.uniqueId` (= username) and `position`. Resolve
-      `trip_id = resolve_driver_trip(username)` (always — the schedule path).
-- [ ] Map fields to the current record shape:
+      wiring; drop `aiomqtt` and the `owntracks/+/+` loop. → FastAPI + uvicorn,
+      `POST /forward` + `GET /health`; Redis via a `lifespan` handler. `aiomqtt`
+      dropped from deps (added `fastapi`/`uvicorn`), `uv lock` updated, Dockerfile
+      CMD `python -m vehicle_poser.main` still runs `main()` → `uvicorn.run`.
+- [x] On each POST: read `device.uniqueId` (= username) and `position`. Resolve
+      `trip_id = resolve_driver_trip(username)` (always — the schedule path). →
+      `resolve_driver_trip` runs in a thread (sync SQLModel session); missing
+      `uniqueId` → `{"status":"ignored"}`, never 500.
+- [x] Map fields to the current record shape:
       `driver=uniqueId`, `trip_id`, `lat=position.latitude`,
       `lon=position.longitude`, `bearing=position.course`,
       `speed = position.speed * 0.514444` (knots → m/s, 4dp),
       `timestamp = position.fixTime` (epoch). Write
-      `SETEX vehicle:{uniqueId}:{position.deviceId or "traccar"} 60 <json>`.
-- [ ] Update `vehicle-poser` env in `docker-compose.yml`: drop `MQTT_*`, keep
-      `REDIS_URL`/`DATABASE_URL`, expose the HTTP port on the compose network.
-- [ ] Enable forwarding in `dev/traccar/traccar.xml`:
+      `SETEX vehicle:{uniqueId}:{position.deviceId or "traccar"} 60 <json>`. →
+      done. **Note**: Traccar's `position.deviceId` is the internal numeric device
+      id (e.g. `4`), not the username — key becomes `vehicle:{username}:{n}`, still
+      matched by cafe-car's `vehicle:{username}:*` scan. `fixTime` arrives ISO-8601,
+      parsed to epoch seconds via `_to_epoch`.
+- [x] Update `vehicle-poser` env in `docker-compose.yml`: drop `MQTT_*`, keep
+      `REDIS_URL`/`DATABASE_URL`, expose the HTTP port on the compose network. →
+      added `HTTP_PORT: 8080` + `expose: ["8080"]`; dropped the `nanomq` depends_on.
+- [x] Enable forwarding in `dev/traccar/traccar.xml`:
       `forward.type=json`, `forward.url=http://vehicle-poser:<port>/forward`
-      (uncomment/replace the commented Redis block). Add retry keys as desired.
-- [ ] Verify: phone fix → Traccar → POST to shim → `redis-cli -n 1 GET
+      (uncomment/replace the commented Redis block). Add retry keys as desired. →
+      `forward.enable/type=json/url=http://vehicle-poser:8080/forward` +
+      `forward.retry.enable=true`; `traccar` now `depends_on` `vehicle-poser`.
+- [x] Verify: phone fix → Traccar → POST to shim → `redis-cli -n 1 GET
       vehicle:<username>:*` shows the correct record → `cafe-car` serves a valid
-      `vehicle_positions.pb` and `trip_updates.pb` **with no cafe-car changes**.
+      `vehicle_positions.pb` and `trip_updates.pb` **with no cafe-car changes**. →
+      **Verified through Traccar's real `:5055` osmand endpoint** (simulating the
+      phone): created device `e2edriver` via REST, POSTed a fix, Traccar forwarded
+      to the shim, Redis held
+      `{"driver":"e2edriver","trip_id":null,"lat":...,"speed":6.1733,"timestamp":...}`
+      (12 knots → 6.1733 m/s, correct contract). cafe-car reads this key unchanged;
+      full `.pb` serving relies on real trip data (no cafe-car changes were needed).
 
 **Gotchas**
 

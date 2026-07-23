@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
+<properties>
+    <entry key='database.driver'>org.postgresql.Driver</entry>
+    <entry key='database.url'>jdbc:postgresql://db:5432/traccar</entry>
+    <entry key='database.user'>postgres</entry>
+    <entry key='database.password'>mysecretpassword</entry>
+
+    <entry key='web.url'>http://localhost:8082</entry>
+
+    <!-- NOTE: for OIDC logins to auto-create their Traccar user, "registration"
+         must be enabled in the server settings (a DB-backed flag, off once the
+         first admin registers): as admin, Settings -> Server -> Permissions ->
+         Registration, or PUT /api/server with "registration": true -->
+
+
+    <entry key='openid.clientId'>traccar</entry>
+    <entry key='openid.clientSecret'>dev-traccar-secret</entry>
+    <entry key='openid.issuerUrl'>http://dex:5556</entry>
+
+    <!-- Forward each position to the vehicle-poser HTTP shim, which resolves the
+         driver's trip via driver-rules and writes the vehicle:{username}:{deviceId}
+         Redis record that cafe-car reads. Do NOT switch this to forward.type=redis:
+         that LPUSHes raw Position JSON (unbounded list, no TTL, no trip_id). -->
+    <entry key='forward.enable'>true</entry>
+    <entry key='forward.type'>json</entry>
+    <entry key='forward.url'>http://vehicle-poser:8080/forward</entry>
+    <entry key='forward.retry.enable'>true</entry>
+</properties>
