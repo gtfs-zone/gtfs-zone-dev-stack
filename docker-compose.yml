@@ -186,6 +186,21 @@ services:
       - redis
       - migrate
 
+  trip-updogger:
+    image: ${TRIP_UPDOGGER_IMAGE:-trip-updogger:local}
+    build:
+      context: ${TRIP_UPDOGGER_DIR:-../trip-updogger}
+    restart: on-failure
+    environment:
+      REDIS_URL: redis://redis:6379/1
+      DATABASE_URL: postgresql+psycopg2://postgres:mysecretpassword@db:5432/postgres
+      POLL_INTERVAL: 5
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
   traccar-db-init:
     image: postgres:16-alpine
     restart: "no"
