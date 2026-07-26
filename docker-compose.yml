@@ -237,12 +237,39 @@ services:
       context: ${HELL_GATE_BRIDGE_DIR:-../hell-gate-bridge}
     restart: on-failure
     environment:
+      SOURCE: amtrak
       POLL_INTERVAL: 15
       ROUTE_FILTER:
       CAFE_CAR_INGEST_URL: http://api:8000
       INGEST_API_TOKEN: dev-ingest-token
+      # Must equal the amtrak Tracker.id provisioned via scripts/provision_source.py
+      # (cafe-car's gtfs_rt.py scans vehicle:{tracker.id}:*).
+      INGEST_VEHICLE_ID: amtrak-live
     volumes:
       - hell_gate_beat:/app/beat
+    depends_on:
+      api:
+        condition: service_healthy
+
+  hell-gate-bridge-buswhere:
+    image: ${HELL_GATE_BRIDGE_IMAGE:-hell-gate-bridge:local}
+    build:
+      context: ${HELL_GATE_BRIDGE_DIR:-../hell-gate-bridge}
+    restart: on-failure
+    environment:
+      SOURCE: buswhere
+      POLL_INTERVAL: 15
+      # Direct raw URL: the github.com/.../raw/ form 302-redirects and hell-gate's
+      # httpx client does not follow redirects (fetch_gtfs would fail).
+      GTFS_URL: https://raw.githubusercontent.com/columbia-county-ny-transit/gtfs-generator/refs/heads/main/columbia_county_gtfs.zip
+      # Blank → poll all mapped Columbia County routes.
+      BUSWHERE_ROUTES:
+      CAFE_CAR_INGEST_URL: http://api:8000
+      INGEST_API_TOKEN: dev-ingest-token
+      # Must equal the columbia-county Tracker.id provisioned in cafe-car.
+      INGEST_VEHICLE_ID: columbia-county
+    volumes:
+      - hell_gate_beat_buswhere:/app/beat
     depends_on:
       api:
         condition: service_healthy
@@ -251,3 +278,4 @@ volumes:
   db_data:
   redis_data:
   hell_gate_beat:
+  hell_gate_beat_buswhere:
