@@ -1,8 +1,0 @@
-# Changes here will be overwritten by Copier; do not edit manually.
-_commit: v0.1.0-1-g674b1a0
-_src_path: /home/maxtkc/Documents/bare-chassis
-description: Local development orchestration for the GTFS-RT project — consolidates
-    all services into a single docker compose up.
-project_name: Music Student
-project_slug: music-student
-project_type: orchestration
