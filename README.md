@@ -78,7 +78,13 @@ and `cafe-car/scripts/simulate_trip.py` — POST straight to cafe-car's
 `/ingest/position` and `/ingest/trip-update` (bearer token `INGEST_API_TOKEN`).
 The trip-update endpoint carries Amtrak's **own** per-stop predicted arrival/
 departure times, which cafe-car serves as multiple `stop_time_update`s. This
-replaced the old NanoMQ + `trip-updogger` recompute path (both retired).
+replaced the old NanoMQ broker (retired in Phase 7).
+
+`trip-updogger` still runs, but only as the fallback for producers that supply
+no predictions of their own — chiefly the Traccar path, whose positions are bare
+lat/lon. It sweeps `vehicle:*` in Redis, projects each fix onto the trip's
+scheduled stops, and writes a schedule-derived `trip_update:*`. A source stamp
+keeps it from ever overwriting a richer producer's record.
 
 ### Dual-run tooling (historical)
 

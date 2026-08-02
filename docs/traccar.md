@@ -5,17 +5,26 @@ OwnTracks → MQTT path. Redis is the stable seam, so `cafe-car` and
 `schedule-foamer` are unchanged.
 
 > Amtrak positions/trip-updates and the `simulate_trip.py` sim do **not** go
-> through Traccar — they POST directly to cafe-car's `/ingest/*` API. NanoMQ and
-> `trip-updogger` were retired in Phase 7.
+> through Traccar — they POST directly to cafe-car's `/ingest/*` API. NanoMQ was
+> retired in Phase 7.
 
 ```
 Traccar Client app (phone)
     └─> Traccar server        (:5055 osmand ingest, :8082 web/REST)
             └─> forward.type=json  POST http://vehicle-poser:8080/forward
-                    └─> vehicle-poser  (resolves trip_id via driver-rules)
-                            └─> Redis  vehicle:{username}:{deviceId}  (60s TTL)
-                                    └─> cafe-car  (serves GTFS-RT feeds)
+                    └─> vehicle-poser  (resolves trip_id via TrackerRules)
+                            └─> Redis  vehicle:{tracker_id}:{deviceId}  (60s TTL)
+                                    ├─> cafe-car      (serves GTFS-RT feeds)
+                                    └─> trip-updogger (schedule-derived
+                                            trip_update:{trip_id}, 300s TTL)
 ```
+
+A Traccar fix is bare lat/lon — vehicle-poser sets no `current_stop_sequence`,
+`stop_id` or `current_status`, so the vehicle positions feed omits them (GTFS-RT
+makes all three optional). `trip-updogger` is what makes such a vehicle locatable
+anyway: it projects each fix onto the trip's scheduled stops and publishes a
+timed prediction for every stop ahead, from which a consumer can infer the
+current stop. Predictions carrying only a delay are not enough for that.
 
 - A driver is provisioned by scanning a QR / config URL generated per Driver in
   the cafe-car admin app. cafe-car auto-creates the matching Traccar device
