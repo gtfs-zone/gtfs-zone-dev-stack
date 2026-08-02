@@ -1,0 +1,129 @@
+{
+  "realm": "gtfs",
+  "displayName": "GTFS.Zone (dev)",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "verifyEmail": false,
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "keycloak@gtfs.local",
+    "fromDisplayName": "GTFS.Zone (dev)",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  },
+  "clients": [
+    {
+      "clientId": "oauth2-proxy",
+      "name": "oauth2-proxy",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "dev-oauth2-proxy-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:4180/oauth2/callback"],
+      "webOrigins": ["http://localhost:4180"]
+    },
+    {
+      "clientId": "traccar",
+      "name": "Traccar",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "dev-traccar-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:8082/*"],
+      "webOrigins": ["http://localhost:8082"]
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "github",
+      "displayName": "GitHub",
+      "providerId": "oidc",
+      "enabled": true,
+      "trustEmail": false,
+      "storeToken": false,
+      "linkOnly": false,
+      "addReadTokenRoleOnCreate": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "gtfs-broker",
+        "clientSecret": "dev-broker-secret",
+        "clientAuthMethod": "client_secret_post",
+        "issuer": "http://keycloak:8090/realms/fake-github",
+        "authorizationUrl": "http://keycloak:8090/realms/fake-github/protocol/openid-connect/auth",
+        "tokenUrl": "http://keycloak:8090/realms/fake-github/protocol/openid-connect/token",
+        "userInfoUrl": "http://keycloak:8090/realms/fake-github/protocol/openid-connect/userinfo",
+        "logoutUrl": "http://keycloak:8090/realms/fake-github/protocol/openid-connect/logout",
+        "jwksUrl": "http://keycloak:8090/realms/fake-github/protocol/openid-connect/certs",
+        "useJwksUrl": "true",
+        "validateSignature": "true",
+        "defaultScope": "openid email profile",
+        "syncMode": "IMPORT"
+      }
+    },
+    {
+      "alias": "google",
+      "displayName": "Google",
+      "providerId": "oidc",
+      "enabled": true,
+      "trustEmail": false,
+      "storeToken": false,
+      "linkOnly": false,
+      "addReadTokenRoleOnCreate": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "gtfs-broker",
+        "clientSecret": "dev-broker-secret",
+        "clientAuthMethod": "client_secret_post",
+        "issuer": "http://keycloak:8090/realms/fake-google",
+        "authorizationUrl": "http://keycloak:8090/realms/fake-google/protocol/openid-connect/auth",
+        "tokenUrl": "http://keycloak:8090/realms/fake-google/protocol/openid-connect/token",
+        "userInfoUrl": "http://keycloak:8090/realms/fake-google/protocol/openid-connect/userinfo",
+        "logoutUrl": "http://keycloak:8090/realms/fake-google/protocol/openid-connect/logout",
+        "jwksUrl": "http://keycloak:8090/realms/fake-google/protocol/openid-connect/certs",
+        "useJwksUrl": "true",
+        "validateSignature": "true",
+        "defaultScope": "openid email profile",
+        "syncMode": "IMPORT"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@local",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Local",
+      "credentials": [
+        { "type": "password", "value": "password", "temporary": false }
+      ]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@local",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Local",
+      "credentials": [
+        { "type": "password", "value": "password", "temporary": false }
+      ]
+    }
+  ]
+}

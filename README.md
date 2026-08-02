@@ -34,7 +34,9 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 | 6379 | Redis |
 | 5555 | Flower (Celery UI, no auth) |
 | 8001 | Admin app (direct, no auth) |
-| 5556 | Dex OIDC provider |
+| 8090 | Keycloak OIDC provider |
+| 8025 | Mailpit (catches all dev mail) |
+| 5556 | Dex OIDC provider (legacy — Traccar only, pending cutover) |
 | 8082 | Traccar web UI + REST API (PoC) |
 | 5055 | Traccar phone-client protocol (osmand) |
 
@@ -43,6 +45,58 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 **Admin login** (via http://localhost:4180):
 - alice@local / password
 - bob@local / password
+
+**Keycloak admin console** (http://keycloak:8090/admin): `admin` / `admin`
+
+## Identity (Keycloak)
+
+Keycloak replaced Dex as the OIDC provider for the admin app, because a person
+must be able to sign in with GitHub *or* Google and land on the same account —
+Dex cannot link accounts at all.
+
+**Requires `keycloak` to resolve to 127.0.0.1 on the host** (`/etc/hosts`
+entry), the same trick the Dex setup needed. The issuer URL is baked into every
+token, so the browser and the other containers must reach Keycloak at the
+identical `http://keycloak:8090`.
+
+```
+127.0.0.1  keycloak
+```
+
+### Fake upstream providers
+
+So the linking flows can be exercised offline, the dev stack brokers to two
+*fake* providers that are just extra realms in the same Keycloak — no real
+GitHub/Google OAuth apps needed. All dev passwords are `password`.
+
+| Realm | Users | Purpose |
+|---|---|---|
+| `gtfs` | alice@local, bob@local | the real realm; local login + brokering |
+| `fake-github` | alice@local, carol@local | stands in for GitHub |
+| `fake-google` | alice@local | stands in for Google |
+
+That gives you all three cases to test:
+
+- **New user** — "GitHub" → `carol` — no such account, so one is created silently.
+- **Existing email** — "GitHub" → `alice` — Keycloak detects `alice@local`
+  already exists and prompts *"an account already exists, link it?"*.
+  Confirm, then verify by email (see it in Mailpit at
+  <http://localhost:8025>) or by re-entering alice's password.
+- **Second provider** — "Google" → `alice` — same prompt, third identity on the
+  same account.
+
+Once linked, a logged-in user manages their providers in Keycloak's account
+console: <http://keycloak:8090/realms/gtfs/account> → Account security → Linked
+accounts.
+
+To point dev at *real* GitHub/Google apps instead, replace the `github`/`google`
+entries in `dev/keycloak/gtfs-realm.json` with `"providerId": "github"` /
+`"google"` and your client id/secret.
+
+> **Realm import is create-only.** Keycloak skips a realm that already exists,
+> so editing `dev/keycloak/*.json` has no effect on a stack that has already
+> booted. To pick up changes:
+> `docker compose down keycloak && docker compose exec db dropdb -U postgres keycloak && docker compose up -d keycloak`
 
 **PostgreSQL**: `postgres` / `mysecretpassword`
 

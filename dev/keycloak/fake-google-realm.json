@@ -1,0 +1,38 @@
+{
+  "realm": "fake-google",
+  "displayName": "Fake Google (dev only)",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "verifyEmail": false,
+  "clients": [
+    {
+      "clientId": "gtfs-broker",
+      "name": "GTFS.Zone broker",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "dev-broker-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://keycloak:8090/realms/gtfs/broker/google/endpoint"],
+      "webOrigins": ["http://keycloak:8090"]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@local",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Local",
+      "credentials": [
+        { "type": "password", "value": "password", "temporary": false }
+      ]
+    }
+  ]
+}

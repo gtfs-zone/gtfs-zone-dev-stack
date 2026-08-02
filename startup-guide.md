@@ -55,10 +55,14 @@ docker compose logs -f migrate  # Ctrl-C once you see "alembic upgrade head" com
 ## 2. Create the owner user (manual, one-time)
 
 `Feed.owner_id` is required, and users are created lazily on first admin login.
-Open the admin behind oauth2-proxy and sign in as the fixtured Dex user:
+Open the admin behind oauth2-proxy and sign in as the fixtured Keycloak user:
 
 - URL: <http://localhost:4180>
 - Login: **`alice@local` / `password`**
+
+This needs a `127.0.0.1  keycloak` line in your `/etc/hosts` — the OIDC issuer
+URL has to be identical for the browser and for the containers. See the
+Identity section of the README.
 
 Loading the admin dashboard creates the `alice@local` `User` row. The
 provisioning script matches the owner by email (`--owner-email`, default

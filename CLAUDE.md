@@ -63,7 +63,10 @@ Leave the variable unset to build from the local `_DIR` path (default behavior).
 | celery-worker | — | Schedule-foamer Celery worker |
 | celery-beat | — | Schedule-foamer Celery beat scheduler |
 | flower | 5555 | Celery monitoring web UI |
-| dex | 5556 | OIDC provider (static dev users) |
+| keycloak | 8090 | OIDC provider (dev users + `fake-github`/`fake-google` broker realms). Needs a `keycloak` → 127.0.0.1 `/etc/hosts` entry |
+| keycloak-db-init | — | Creates the `keycloak` database in Postgres, exits |
+| mailpit | 8025 | Catches dev mail (Keycloak account-link verification) |
+| dex | 5556 | Legacy OIDC provider — Traccar only, retained until the prod cutover |
 | oauth2-proxy | 4180 | oauth2-proxy in front of admin |
 | vehicle-poser | 8080 (internal) | Traccar `json` HTTP-forward receiver→Redis vehicle position bridge |
 | trip-updogger | — | Redis→Redis worker: schedule-derived trip updates for positions with no predictions |
