@@ -237,6 +237,11 @@ services:
       # `name` value was neither stable nor unique.
       OAUTH2_PROXY_USER_ID_CLAIM: sub
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      # /oauth2/sign_out only drops oauth2-proxy's own cookie. Without this,
+      # Keycloak's SSO session survives, the bounce back to "/" is silently
+      # re-authorized, and logout appears to do nothing. This calls Keycloak's
+      # end_session_endpoint server-side so the SSO session dies too.
+      OAUTH2_PROXY_BACKEND_LOGOUT_URL: http://keycloak:8090/realms/gtfs/protocol/openid-connect/logout?id_token_hint={id_token}
     depends_on:
       keycloak:
         condition: service_healthy
