@@ -102,7 +102,28 @@ entries in `dev/keycloak/gtfs-realm.json` with `"providerId": "github"` /
 > cafe-car stores as `identity.provider_subject`. Every existing person then
 > looks like a brand-new account with none of their feeds. Prefer patching the
 > live realm with `kcadm.sh` (see below) over re-importing, unless you are also
-> wiping the cafe-car database.
+> wiping the cafe-car database — see "Resetting local state" below.
+
+### Resetting local state
+
+If admin access looks broken (a feed owned by an account you can't log back
+in as — e.g. after an OIDC provider change like the Dex→Keycloak cutover, see
+above), or Keycloak/cafe-car state has just drifted from `dev/*` config,
+don't patch it in place — this stack is local-only, so it's cheaper to start
+over:
+
+```bash
+./scripts/reset.sh
+```
+
+This wipes Postgres (both cafe-car's app DB and the `keycloak` DB living in
+the same instance) and Redis, brings the stack back up, re-imports the
+Keycloak realm fresh, bootstraps the `alice@local` cafe-car account and
+Traccar's first admin account, and reprovisions the three default feeds
+(`amtrak`, `columbia-county`, `west` — see `scripts/provision_default_feeds.sh`,
+which you can also run on its own to reprovision without a full reset).
+Anything created by hand (extra feeds, trackers, Keycloak users) is gone
+after this — re-create it, or extend `provision_default_feeds.sh`.
 
 #### Patching a realm that already exists
 

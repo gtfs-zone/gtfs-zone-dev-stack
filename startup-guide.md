@@ -1,5 +1,11 @@
 # Startup Guide — full reset to three live feeds
 
+> **This is now automated.** Run `./scripts/reset.sh` (see README.md
+> "Resetting local state") instead of doing the following by hand — it does
+> everything below except step 5 (handing `west` to a driver, which needs an
+> actual phone). Kept as reference/troubleshooting detail for what the script
+> does and why.
+
 Brings the stack up from a clean slate and provisions three feeds:
 
 | Feed | `feed_name` | Position source | Trip resolution | Human step |
@@ -225,7 +231,7 @@ Live vehicles only appear when the upstream actually has moving vehicles:
 
 ## Troubleshooting
 
-- **`No 'dex' User with email='alice@local'`** — you skipped step 2. Log into the
+- **`No User with primary_email='alice@local'`** — you skipped step 2. Log into the
   admin once, then re-run.
 - **Poller logs show `No active rule` / positions don't appear** — for the pollers
   this is fine (they post explicit `trip_id`). For **west**, it means no
