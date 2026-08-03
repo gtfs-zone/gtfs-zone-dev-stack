@@ -83,6 +83,16 @@ services:
       REDIS_URL: redis://redis:6379/1
       SESSION_SECRET_KEY: dev-secret-key
       DEBUG: "true"
+      # Read-only admin-API access, so /account can show which upstream
+      # providers are linked to the signed-in realm account — Keycloak is the
+      # only thing that knows the whole list. The account console URL goes
+      # through the `keycloak` hostname so the browser and the containers agree
+      # on the issuer (the /etc/hosts entry the README documents).
+      KEYCLOAK_URL: http://keycloak:8090
+      KEYCLOAK_REALM: gtfs
+      KEYCLOAK_CLIENT_ID: cafe-car
+      KEYCLOAK_CLIENT_SECRET: dev-cafe-car-secret
+      KEYCLOAK_ACCOUNT_URL: http://keycloak:8090/realms/gtfs/account
       TRACCAR_URL: http://traccar:8082
       TRACCAR_EMAIL: admin@local
       TRACCAR_PASSWORD: admin
