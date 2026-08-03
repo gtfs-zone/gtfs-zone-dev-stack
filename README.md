@@ -97,6 +97,42 @@ entries in `dev/keycloak/gtfs-realm.json` with `"providerId": "github"` /
 > so editing `dev/keycloak/*.json` has no effect on a stack that has already
 > booted. To pick up changes:
 > `docker compose down keycloak && docker compose exec db dropdb -U postgres keycloak && docker compose up -d keycloak`
+>
+> That re-import mints **new user UUIDs**, and the UUID is the `sub` claim that
+> cafe-car stores as `identity.provider_subject`. Every existing person then
+> looks like a brand-new account with none of their feeds. Prefer patching the
+> live realm with `kcadm.sh` (see below) over re-importing, unless you are also
+> wiping the cafe-car database.
+
+#### Patching a realm that already exists
+
+```bash
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh config credentials \
+  --server http://localhost:8090 --realm master --user admin --password admin
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update \
+  identity-provider/instances/github -r gtfs -s trustEmail=true
+```
+
+#### Brokered logins must arrive with a verified email
+
+Both brokers are `"trustEmail": true`. Real GitHub and Google only release
+addresses they have themselves verified, so Keycloak may mark the imported user
+`emailVerified`. **This is load-bearing, not cosmetic**: cafe-car matches a
+person to a pending feed invite — and to a link/merge candidate — only on a
+*verified* address. With `trustEmail: false` and the realm's `verifyEmail: false`,
+first-broker-login creates the user unverified, and a feed shared with that
+address silently never reaches them.
+
+A broker that does *not* verify addresses must stay `trustEmail: false`; turn on
+the realm's `verifyEmail` instead so Keycloak does the checking itself.
+
+Users created before this was fixed keep `emailVerified = false`; flip one with
+`kcadm.sh update users/<uuid> -r gtfs -s emailVerified=true`.
+
+The `oauth2-proxy` client also carries an `identity_provider` protocol mapper (a
+user-session-note mapper) so tokens say which broker a session came through.
+cafe-car stores it as `identity.broker_alias` and shows it on `/account`; a
+direct realm login has no such note and shows as "Direct".
 
 **PostgreSQL**: `postgres` / `mysecretpassword`
 
