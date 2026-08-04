@@ -5,7 +5,7 @@ OwnTracks → MQTT path. Redis is the stable seam, so `cafe-car` and
 `schedule-foamer` are unchanged.
 
 > Amtrak positions/trip-updates and the `simulate_trip.py` sim do **not** go
-> through Traccar — they POST directly to cafe-car's `/ingest/*` API. NanoMQ was
+> through Traccar; they POST directly to cafe-car's `/ingest/*` API. NanoMQ was
 > retired in Phase 7.
 
 ```
@@ -19,7 +19,7 @@ Traccar Client app (phone)
                                             trip_update:{trip_id}, 300s TTL)
 ```
 
-A Traccar fix is bare lat/lon — vehicle-poser sets no `current_stop_sequence`,
+A Traccar fix is bare lat/lon: vehicle-poser sets no `current_stop_sequence`,
 `stop_id` or `current_status`, so the vehicle positions feed omits them (GTFS-RT
 makes all three optional). `trip-updogger` is what makes such a vehicle locatable
 anyway: it projects each fix onto the trip's scheduled stops and publishes a
@@ -30,7 +30,7 @@ current stop. Predictions carrying only a delay are not enough for that.
   the cafe-car admin app. cafe-car auto-creates the matching Traccar device
   (`uniqueId = username`) via REST when the Driver is created.
 - The shim writes the **exact** record shape the OwnTracks bridge used, keyed
-  `vehicle:{username}:{deviceId}` — see `vehicle-poser`'s README for the field
+  `vehicle:{username}:{deviceId}`; see `vehicle-poser`'s README for the field
   mapping (knots→m/s, ISO-8601→epoch, etc.).
 - Config lives in `dev/traccar/traccar.xml` (Postgres storage, Dex OIDC,
   `forward.*` to the shim). The `traccar` DB is created by the one-off
@@ -44,14 +44,14 @@ Three roles, deliberately kept simple:
 |---|---|---|---|
 | **Admin** | us (operators) | internal password (`admin@local` / `admin`) | administrator user; owns the REST-created fleet devices |
 | **Manager** | bus company | Dex OIDC ("Login with OpenID") | regular user, auto-provisioned on first login |
-| **Driver** | the vehicle | none — device-only, QR-provisioned | Device (`uniqueId = username`), no user account |
+| **Driver** | the vehicle | none: device-only, QR-provisioned | Device (`uniqueId = username`), no user account |
 
 Verified on the live stack: `registration:true`, `openIdEnabled:true`,
 `openIdForce:false`; a first-time Dex login auto-creates a regular Traccar user.
 
 **Registration flag posture: keep `registration=true`.** It is what lets OIDC
 auto-provision manager accounts on first login; disabling it breaks Dex-manager
-onboarding. Tradeoff — it also exposes self-service account registration in the
+onboarding. Tradeoff: it also exposes self-service account registration in the
 web UI. Acceptable in dev; prod hardening (deferred) is `openid.force=true` to
 force SSO and hide the internal register/login form, gating account creation at
 Dex.
@@ -61,19 +61,19 @@ Dex.
 1. **Managers see no devices by default.** Traccar scopes device visibility
    per-user, and fleet devices are owned by `admin@local` (cafe-car creates them
    via REST as that account). A freshly provisioned manager sees an empty device
-   list until devices are explicitly shared — `POST /api/permissions {userId,
+   list until devices are explicitly shared: `POST /api/permissions {userId,
    deviceId}`, assigning devices to the manager, or promoting them to a Traccar
    admin. The real fleet layer will need one of these.
 2. **Dex users can't auto-become admin.** Dex `staticPasswords` emit no `groups`
    claim, so `openid.adminGroup` has nothing to match. Internal `admin@local`
    stays the admin path in; prod would need a Dex connector that emits groups.
-3. **The QR / `uniqueId` is a bearer credential** — anyone who photographs it can
+3. **The QR / `uniqueId` is a bearer credential**: anyone who photographs it can
    impersonate that driver. Acceptable for public transit data now; per-device
    tokens / plausibility filtering are deferred.
 
 ## Retention
 
-Traccar has **no config-file retention key** (confirmed on 6.14.5) — it persists
+Traccar has **no config-file retention key** (confirmed on 6.14.5); it persists
 every fix to `tc_positions` indefinitely. This is new durable data the OwnTracks
 path never kept, and it lives in the shared `db_data` volume.
 
@@ -89,7 +89,7 @@ path never kept, and it lives in the shared `db_data` volume.
 ## Gotchas
 
 - The `:5055` osmand endpoint / QR base must be an address the **phone** can
-  reach — `localhost` only works from the host. Parameterized via
+  reach; `localhost` only works from the host. Parameterized via
   `TRACCAR_CLIENT_BASE`; set it to the public Traccar hostname in prod.
 - `docker compose down -v` wipes the shared `db_data` volume → Traccar data +
   the `registration`/admin flags reset. Re-enable Registration (Settings →

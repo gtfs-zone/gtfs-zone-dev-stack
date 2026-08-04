@@ -1,7 +1,7 @@
-# Startup Guide — full reset to three live feeds
+# Startup Guide: full reset to three live feeds
 
 > **This is now automated.** Run `./scripts/reset.sh` (see README.md
-> "Resetting local state") instead of doing the following by hand — it does
+> "Resetting local state") instead of doing the following by hand; it does
 > everything below except step 5 (handing `west` to a driver, which needs an
 > actual phone). Kept as reference/troubleshooting detail for what the script
 > does and why.
@@ -16,7 +16,7 @@ Brings the stack up from a clean slate and provisions three feeds:
 
 The two pollers authenticate to cafe-car's `/ingest/*` with the shared
 `INGEST_API_TOKEN` and publish under a **fixed** `INGEST_VEHICLE_ID` that must
-equal a `Tracker.id` — these are wired in `docker-compose.yml`
+equal a `Tracker.id`: these are wired in `docker-compose.yml`
 (`amtrak-live`, `columbia-county`). West's tracker id is a secret pet-name that
 the driver's QR encodes; nothing else needs to know it.
 
@@ -66,7 +66,7 @@ Open the admin behind oauth2-proxy and sign in as the fixtured Keycloak user:
 - URL: <http://localhost:4180>
 - Login: **`alice@local` / `password`**
 
-This needs a `127.0.0.1  keycloak` line in your `/etc/hosts` — the OIDC issuer
+This needs a `127.0.0.1  keycloak` line in your `/etc/hosts`: the OIDC issuer
 URL has to be identical for the browser and for the containers. See the
 Identity section of the README.
 
@@ -77,7 +77,7 @@ provisioning script matches the owner by email (`--owner-email`, default
 ## 3. Bootstrap the Traccar admin account
 
 West's device creation and QR provisioning use Traccar's REST API with Basic auth
-`admin@local / admin`. A **fresh Traccar DB has no users** — Traccar does not
+`admin@local / admin`. A **fresh Traccar DB has no users**; Traccar does not
 auto-create one here. The first `POST /api/users` (allowed unauthenticated while
 `tc_users` is empty) registers that user as administrator:
 
@@ -106,7 +106,7 @@ export TRACCAR_URL=http://localhost:8082 TRACCAR_EMAIL=admin@local TRACCAR_PASSW
 ```
 
 **Amtrak** (poller; fixed id must match compose `INGEST_VEHICLE_ID=amtrak-live`;
-no Traccar device needed — it isn't a phone):
+no Traccar device needed; it isn't a phone):
 
 ```bash
 uv run python scripts/provision_source.py \
@@ -143,7 +143,7 @@ uv run python scripts/provision_source.py \
 
 `--rule DAYS=HH:MM-HH:MM=TRIP_ID`. The example above maps **any** time, any day, to
 trip `WCCWB` (route `WCC`, "West's Coastal Connection", the only `DAILY`-service
-trip) — convenient so a scan resolves whenever you test. West's timezone is
+trip), convenient so a scan resolves whenever you test. West's timezone is
 `America/New_York`, and rule windows are evaluated in that zone.
 
 To use a realistic window instead, inspect the feed and pick a trip + its running
@@ -157,9 +157,9 @@ unzip -p example_data/west_gtfs.zip stop_times.txt | awk -F, '$1=="WCCWB"' | hea
 ```
 
 Examples:
-- `--rule daily=00:00-23:59=WCCWB` — demo: always resolves to WCCWB.
-- `--rule mon-fri=07:00-19:00=WCCWB` — weekday daytime westbound.
-- `--rule mon=09:00-13:00=ELLSWB` — Monday-only Ellsworth run (service `MONDAY`).
+- `--rule daily=00:00-23:59=WCCWB` - demo: always resolves to WCCWB.
+- `--rule mon-fri=07:00-19:00=WCCWB`: weekday daytime westbound.
+- `--rule mon=09:00-13:00=ELLSWB`: Monday-only Ellsworth run (service `MONDAY`).
 
 Pass `--rule` more than once for multiple windows; re-running the command
 **replaces** all of that tracker's rules.
@@ -195,7 +195,7 @@ docker compose exec -T db psql -U postgres -tAc \
 docker compose logs --tail=30 hell-gate-bridge
 docker compose logs --tail=30 hell-gate-bridge-buswhere
 
-# Served GTFS-RT — HTTP status (expect 200)
+# Served GTFS-RT: HTTP status (expect 200)
 curl -s -o /dev/null -w "amtrak vp: %{http_code}\n"          http://localhost:8000/amtrak/vehicle_positions.pb
 curl -s -o /dev/null -w "columbia vp: %{http_code}\n"        http://localhost:8000/columbia-county/vehicle_positions.pb
 curl -s -o /dev/null -w "west vp: %{http_code}\n"            http://localhost:8000/west/vehicle_positions.pb
@@ -210,11 +210,11 @@ m=pb.FeedMessage(); m.ParseFromString(d); print('amtrak entities:', len(m.entity
 
 Live vehicles only appear when the upstream actually has moving vehicles:
 - **Amtrak**: trains run ~all day, so the `amtrak` feed should show entities within a
-  poll cycle (~15 s) of startup — a good end-to-end smoke signal.
+  poll cycle (~15 s) of startup, a good end-to-end smoke signal.
 - **Columbia County**: only during that system's service hours (0 vehicles otherwise
-  is normal — the poller still logs `0 vehicles` each cycle).
+  is normal; the poller still logs `0 vehicles` each cycle).
 - **West**: only after a driver scans the QR *and* a `TrackerRule` window is active.
-  To test without a phone, run the simulator in **device mode** — it emulates the
+  To test without a phone, run the simulator in **device mode**: it emulates the
   Traccar Client app (posts fixes to `:5055`), so the whole real path runs and the
   trip is resolved server-side from the rules (replace `<west-id>` with the west
   `Tracker.id` from the query above):
@@ -231,18 +231,18 @@ Live vehicles only appear when the upstream actually has moving vehicles:
 
 ## Troubleshooting
 
-- **`No User with primary_email='alice@local'`** — you skipped step 2. Log into the
+- **`No User with primary_email='alice@local'`**: you skipped step 2. Log into the
   admin once, then re-run.
-- **Poller logs show `No active rule` / positions don't appear** — for the pollers
+- **Poller logs show `No active rule` / positions don't appear**: for the pollers
   this is fine (they post explicit `trip_id`). For **west**, it means no
   `TrackerRule` window is currently active, or the `west` GTFS static hasn't loaded
   yet (timezone unknown → resolution returns `None`). Check step 6's status query.
-- **Traccar admin** — if step 3 shows no `admin@local` admin (fresh Traccar may
+- **Traccar admin**: if step 3 shows no `admin@local` admin (fresh Traccar may
   create a different default), create it in the web UI at <http://localhost:8082>
   with the default account, or via REST, so email is `admin@local` / password
   `admin` (matching the `TRACCAR_EMAIL`/`TRACCAR_PASSWORD` the `api`/`admin`
   services use). Then re-run the `west` provisioning command.
-- **`vehicle_positions.pb` 404** — the feed row doesn't exist; re-run its
+- **`vehicle_positions.pb` 404**: the feed row doesn't exist; re-run its
   provisioning command (check the `feed_name` matches the URL path).
-- **Re-provisioning is safe** — the script is idempotent: same `--feed-name` /
+- **Re-provisioning is safe**: the script is idempotent: same `--feed-name` /
   `--nickname` reuse existing rows and the Traccar device; `--rule`s are replaced.

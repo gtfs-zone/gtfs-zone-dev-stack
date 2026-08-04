@@ -3,13 +3,13 @@
 
 During cutover de-risking we run two pipelines into the same Redis DB:
 
-  * live   — OwnTracks -> vehicle-poser(old) -> ``vehicle:{user}:{device}``
-  * shadow — Traccar   -> shim (VEHICLE_KEY_PREFIX=shadow:vehicle)
+  * live   : OwnTracks -> vehicle-poser(old) -> ``vehicle:{user}:{device}``
+  * shadow : Traccar   -> shim (VEHICLE_KEY_PREFIX=shadow:vehicle)
              -> ``shadow:vehicle:{user}:{device}``
 
 This script reads both namespaces and, per driver, reports position freshness,
 coordinate delta, and resolved ``trip_id`` agreement so a human can judge parity
-before flipping cafe-car onto the Traccar feed. It is read-only — it never writes
+before flipping cafe-car onto the Traccar feed. It is read-only; it never writes
 to Redis.
 
 Usage:

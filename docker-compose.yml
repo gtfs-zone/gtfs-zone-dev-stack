@@ -84,7 +84,7 @@ services:
       SESSION_SECRET_KEY: dev-secret-key
       DEBUG: "true"
       # Read-only admin-API access, so /account can show which upstream
-      # providers are linked to the signed-in realm account — Keycloak is the
+      # providers are linked to the signed-in realm account. Keycloak is the
       # only thing that knows the whole list. The account console URL goes
       # through the `keycloak` hostname so the browser and the containers agree
       # on the issuer (the /etc/hosts entry the README documents).
@@ -175,7 +175,7 @@ services:
   #
   # The port is 8090 both inside and outside the container on purpose. The
   # issuer URL is baked into every token, so the browser and the other
-  # containers must reach Keycloak at the *identical* URL — hence the
+  # containers must reach Keycloak at the *identical* URL, hence the
   # `keycloak` /etc/hosts entry the README documents (same trick Dex used).
   keycloak:
     image: quay.io/keycloak/keycloak:26.4
@@ -242,7 +242,7 @@ services:
       OAUTH2_PROXY_SCOPE: "openid email profile"
       OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
       OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "false"
-      # `sub` — a stable Keycloak UUID that survives a display-name change and
+      # `sub`: a stable Keycloak UUID that survives a display-name change and
       # is the same no matter which upstream provider the user linked. The old
       # `name` value was neither stable nor unique.
       OAUTH2_PROXY_USER_ID_CLAIM: sub

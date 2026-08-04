@@ -12,7 +12,7 @@
 --     psql -U postgres -d traccar -v days=30 -f - < scripts/traccar_retention.sql
 --
 -- For prod, schedule this (cron / pg_cron / a k8s CronJob). A running cron
--- service is intentionally NOT added to the dev compose stack — see
+-- service is intentionally NOT added to the dev compose stack: see
 -- docs/traccar.md "Retention".
 --
 -- Safety: tc_positions has no DB-level FK in 6.14.5, but tc_devices

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Provisions the three feeds the rest of the dev stack expects to exist:
-# amtrak, columbia-county (fed by hell-gate-bridge's pollers — their fixed
+# amtrak, columbia-county (fed by hell-gate-bridge's pollers; their fixed
 # INGEST_VEHICLE_ID in docker-compose.yml must match the --tracker-id here),
 # and west (a real Traccar device, given a rule so a simulated/real fix always
 # resolves to a trip). Mirrors startup-guide.md §4.
