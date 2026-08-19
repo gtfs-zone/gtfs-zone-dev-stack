@@ -10,7 +10,8 @@
 # gone: feeds, trackers, positions, Keycloak users/sessions.
 #
 # Recreates: a fresh Keycloak realm import (dev/keycloak/*.json), the
-# alice@local cafe-car account, Traccar's first admin account, and the three
+# alice@local cafe-car account (in gtfs-admins, so an admin in both apps),
+# Traccar's break-glass admin account, and the three
 # default feeds (amtrak, columbia-county, west) via provision_default_feeds.sh.
 set -euo pipefail
 
@@ -35,6 +36,13 @@ else
   echo "    already present, skipping"
 fi
 
+echo "==> disabling Traccar self-registration"
+# Prod keeps this off so the public sign-up form cannot bypass the
+# openid.allowGroup gate; openid.allowRegistration is what still lets a
+# gtfs-admins member provision themselves on first OIDC login.
+docker compose exec -T db psql -U postgres -d traccar -qtAc \
+  "update tc_servers set registration = false;" >/dev/null
+
 echo "==> bootstrap alice@local's cafe-car account"
 kc_token=$(curl -sf -X POST \
   http://localhost:8090/realms/master/protocol/openid-connect/token \
@@ -58,7 +66,7 @@ fi
 # same account instead of minting a duplicate.
 jwt_payload=$(python3 -c "
 import base64, json, sys
-claims = {'sub': sys.argv[1], 'email': 'alice@local', 'email_verified': True, 'name': 'Alice Local'}
+claims = {'sub': sys.argv[1], 'email': 'alice@local', 'email_verified': True, 'name': 'Alice Local', 'groups': ['gtfs-admins']}
 def b64(d): return base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b'=').decode()
 print(f\"{b64({'alg': 'none', 'typ': 'JWT'})}.{b64(claims)}.\")
 " "$alice_sub")

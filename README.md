@@ -36,7 +36,6 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 | 8001 | Admin app (direct, no auth) |
 | 8090 | Keycloak OIDC provider |
 | 8025 | Mailpit (catches all dev mail) |
-| 5556 | Dex OIDC provider (legacy, Traccar only, pending cutover) |
 | 8082 | Traccar web UI + REST API (PoC) |
 | 5055 | Traccar phone-client protocol (osmand) |
 
@@ -50,13 +49,13 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 
 ## Identity (Keycloak)
 
-Keycloak replaced Dex as the OIDC provider for the admin app, because a person
-must be able to sign in with GitHub *or* Google and land on the same account.
-Dex cannot link accounts at all.
+Keycloak is the OIDC provider for both the admin app (behind oauth2-proxy) and
+Traccar (a separate client with its own login). It replaced Dex because a person
+must be able to sign in with GitHub *or* Google and land on the same account,
+which Dex cannot do at all.
 
 **Requires `keycloak` to resolve to 127.0.0.1 on the host** (`/etc/hosts`
-entry), the same trick the Dex setup needed. The issuer URL is baked into every
-token, so the browser and the other containers must reach Keycloak at the
+entry). The issuer URL is baked into every token, so the browser and the other containers must reach Keycloak at the
 identical `http://keycloak:8090`.
 
 ```
@@ -96,7 +95,7 @@ entries in `dev/keycloak/gtfs-realm.json` with `"providerId": "github"` /
 > **Realm import is create-only.** Keycloak skips a realm that already exists,
 > so editing `dev/keycloak/*.json` has no effect on a stack that has already
 > booted. To pick up changes:
-> `docker compose down keycloak && docker compose exec db dropdb -U postgres keycloak && docker compose up -d keycloak`
+> `docker compose down keycloak && docker compose exec db dropdb -U postgres keycloak && docker compose exec db createdb -U postgres -O keycloak keycloak && docker compose up -d keycloak`
 >
 > That re-import mints **new user UUIDs**, and the UUID is the `sub` claim that
 > cafe-car stores as `identity.provider_subject`. Every existing person then
@@ -107,8 +106,8 @@ entries in `dev/keycloak/gtfs-realm.json` with `"providerId": "github"` /
 ### Resetting local state
 
 If admin access looks broken (a feed owned by an account you can't log back
-in as, e.g. after an OIDC provider change like the Dex→Keycloak cutover, see
-above), or Keycloak/cafe-car state has just drifted from `dev/*` config,
+in as, e.g. after an OIDC provider change), or Keycloak/cafe-car state has
+just drifted from `dev/*` config,
 don't patch it in place; this stack is local-only, so it's cheaper to start
 over:
 
@@ -155,21 +154,41 @@ user-session-note mapper) so tokens say which broker a session came through.
 cafe-car stores it as `identity.broker_alias` and shows it on `/account`; a
 direct realm login has no such note and shows as "Direct".
 
-**PostgreSQL**: `postgres` / `mysecretpassword`
+**PostgreSQL**: superuser `postgres` / `mysecretpassword`. Each service has its
+own role and database, matching prod's CNPG layout: `rt_api` / `rt_api` (cafe-car
+and Celery), `keycloak` / `keycloak`, `traccar` / `traccar`. See
+`dev/postgres/init-roles.sql`, which only runs on a fresh `db` volume.
 
 **Realtime ingest**: there is no MQTT broker anymore. Driver positions flow
 through **Traccar** → `vehicle-poser` shim → Redis (see below). Amtrak positions
 and trip-updates, and the `simulate_trip.py` sim, POST directly to cafe-car's
 `/ingest/*` API (shared bearer token `dev-ingest-token`).
 
-**Traccar** (http://localhost:8082): on a fresh database, register the first
-account; it becomes admin. "Login with OpenID" goes through Dex (e.g.
-alice@local / password) and auto-creates a regular user, but only after
-Registration is enabled in Settings → Server → Permissions (it turns off once
-the first admin exists). Dex-federated users cannot become admin automatically
-(Dex static users carry no groups claim). Requires `dex` to resolve to
-127.0.0.1 on the host (`/etc/hosts` entry) so the browser can reach the
-issuer URL.
+**Traccar** (http://localhost:8082) is **admin-only**. "Login with OpenID" goes
+to Keycloak, and `openid.allowGroup` refuses anyone outside the `gtfs-admins`
+group at the callback: they get no Traccar account at all. Members who pass are
+made Traccar administrators by `openid.adminGroup`, so they see every device
+without any per-user device sharing.
+
+Locally that means **alice can log in and bob cannot** -- `scripts/reset.sh`
+puts alice in the group and deliberately leaves bob out, which is the whole test
+matrix for the gate. `admin@local` / `admin` remains as a local password
+break-glass account, and is what cafe-car uses for the REST API.
+
+`scripts/reset.sh` turns the self-registration form off, matching prod;
+`openid.allowRegistration` is what still lets a group member provision
+themselves on first login.
+
+**Admin app** (http://localhost:4180) stays open to every realm account, unlike
+Traccar. What changes for a `gtfs-admins` member is scope: they see and edit
+every feed, tracker, rule and alert rather than only their own, and they get the
+owner-only controls (share, remove, revoke, transfer) on feeds they do not own.
+A banner on the sharing panel says when that is why the controls are there.
+
+cafe-car reads the group from the `groups` claim in the access token
+oauth2-proxy forwards; the group name is the `ADMIN_GROUP` setting, defaulting
+to `gtfs-admins`. `scripts/reset.sh` puts alice in the group, so the bootstrapped
+local account is an admin in both apps.
 
 ## Vehicle locations (Traccar)
 

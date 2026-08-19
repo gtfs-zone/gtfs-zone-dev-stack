@@ -40,7 +40,7 @@ VEHICLE_POSER_DIR=../vehicle-poser
 
 **Image overrides**: optional, to pull from a registry instead of building:
 ```
-CAFE_CAR_IMAGE=ghcr.io/org/cafe-car:latest
+CAFE_CAR_IMAGE=git.kcfam.us/gtfs.zone/cafe-car:latest
 ```
 
 ## Remote Image Workflow
@@ -64,19 +64,30 @@ Leave the variable unset to build from the local `_DIR` path (default behavior).
 | celery-beat | - | Schedule-foamer Celery beat scheduler |
 | flower | 5555 | Celery monitoring web UI |
 | keycloak | 8090 | OIDC provider (dev users + `fake-github`/`fake-google` broker realms). Needs a `keycloak` → 127.0.0.1 `/etc/hosts` entry |
-| keycloak-db-init | - | Creates the `keycloak` database in Postgres, exits |
 | mailpit | 8025 | Catches dev mail (Keycloak account-link verification) |
-| dex | 5556 | Legacy OIDC provider (Traccar only, retained until the prod cutover) |
 | oauth2-proxy | 4180 | oauth2-proxy in front of admin |
 | vehicle-poser | 8080 (internal) | Traccar `json` HTTP-forward receiver→Redis vehicle position bridge |
 | trip-updogger | - | Redis→Redis worker: schedule-derived trip updates for positions with no predictions |
 | hell-gate-bridge | - | Amtrak live tracker→cafe-car `/ingest/*` (positions + trip-updates) |
-| traccar-db-init | - | Creates the `traccar` database in Postgres, exits |
-| traccar | 8082, 5055 | Traccar GPS tracking server, live vehicle-location source (8082 = web/REST, 5055 = phone client protocol). See `docs/traccar.md` |
+| traccar | 8082, 5055 | Traccar GPS tracking server, live vehicle-location source (8082 = web/REST, 5055 = phone client protocol). Admin-only: OIDC login is gated on the `gtfs-admins` Keycloak group. See `docs/traccar.md` |
+
+## Postgres Roles
+
+One role and database per service, created by `dev/postgres/init-roles.sql` on
+first boot of the `db` volume, mirroring the CNPG topology in prod:
+
+- `rt_api` / `rt_api`: cafe-car (api, admin, migrate) and the Celery services
+- `keycloak` / `keycloak`: Keycloak
+- `traccar` / `traccar`: Traccar
+
+`postgres` / `mysecretpassword` is still the superuser, for psql and the reset
+script. The init script only runs on an empty data directory, so switching to
+this layout needs `docker compose down -v` (`scripts/reset.sh`).
 
 ## Redis DB Allocation
 
-- DB 0: oauth2-proxy session storage
+- DB 0: oauth2-proxy session storage in prod. The dev oauth2-proxy has no
+  redis session store configured, so locally this DB stays empty.
 - DB 1: api + vehicle-poser + trip-updogger (vehicle position + trip-update data)
 - DB 3: Celery broker (schedule-foamer tasks)
 - DB 4: Celery result backend

@@ -30,8 +30,12 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://localhost:4180/oauth2/callback"],
-      "webOrigins": ["http://localhost:4180"],
+      "redirectUris": [
+        "http://localhost:4180/oauth2/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:4180"
+      ],
       "protocolMappers": [
         {
           "name": "identity provider",
@@ -47,6 +51,15 @@
             "userinfo.token.claim": "true"
           }
         }
+      ],
+      "defaultClientScopes": [
+        "acr",
+        "basic",
+        "email",
+        "profile",
+        "roles",
+        "web-origins",
+        "groups"
       ]
     },
     {
@@ -73,8 +86,53 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://localhost:8082/*"],
-      "webOrigins": ["http://localhost:8082"]
+      "redirectUris": [
+        "http://localhost:8082/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8082"
+      ],
+      "defaultClientScopes": [
+        "acr",
+        "basic",
+        "email",
+        "profile",
+        "roles",
+        "web-origins",
+        "groups"
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "groups",
+      "description": "Realm group memberships, as a flat `groups` claim.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "gtfs-admins",
+      "path": "/gtfs-admins"
     }
   ],
   "identityProviders": [
@@ -137,7 +195,9 @@
       "enabled": true,
       "serviceAccountClientId": "cafe-car",
       "clientRoles": {
-        "realm-management": ["view-users"]
+        "realm-management": [
+          "view-users"
+        ]
       }
     },
     {
@@ -148,7 +208,14 @@
       "firstName": "Alice",
       "lastName": "Local",
       "credentials": [
-        { "type": "password", "value": "password", "temporary": false }
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/gtfs-admins"
       ]
     },
     {
@@ -159,7 +226,11 @@
       "firstName": "Bob",
       "lastName": "Local",
       "credentials": [
-        { "type": "password", "value": "password", "temporary": false }
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
       ]
     }
   ]

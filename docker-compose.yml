@@ -1,4 +1,9 @@
 services:
+  # Prod is CloudNativePG with a role and database per service. This mirrors that
+  # topology (see dev/postgres/init-roles.sql) so ownership and grant problems
+  # surface locally instead of in the cluster. The init script only runs on a
+  # fresh volume, so switching to it needs `docker compose down -v`, which is
+  # what scripts/reset.sh does.
   db:
     image: postgres:16-alpine
     environment:
@@ -9,13 +14,15 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./dev/postgres/init-roles.sql:/docker-entrypoint-initdb.d/init-roles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:8.6-alpine
+    command: redis-server --appendonly yes
     ports:
       - "6379:6379"
     volumes:
@@ -31,7 +38,7 @@ services:
       context: ${CAFE_CAR_DIR:-../cafe-car}
     command: railroad-club-migrate
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:mysecretpassword@db:5432/postgres
+      DATABASE_URL: postgresql+asyncpg://rt_api:rt_api@db:5432/rt_api
       REDIS_URL: redis://redis:6379/1
       SESSION_SECRET_KEY: dev-secret-key
     depends_on:
@@ -46,7 +53,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:mysecretpassword@db:5432/postgres
+      DATABASE_URL: postgresql+asyncpg://rt_api:rt_api@db:5432/rt_api
       REDIS_URL: redis://redis:6379/1
       SESSION_SECRET_KEY: dev-secret-key
       # test-track's vite dev server asks for 8080 but silently drifts to 8081+
@@ -79,7 +86,7 @@ services:
     ports:
       - "8001:8001"
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:mysecretpassword@db:5432/postgres
+      DATABASE_URL: postgresql+asyncpg://rt_api:rt_api@db:5432/rt_api
       REDIS_URL: redis://redis:6379/1
       SESSION_SECRET_KEY: dev-secret-key
       DEBUG: "true"
@@ -112,7 +119,7 @@ services:
     command: celery -A schedule_foamer.celery_app worker -l info
     restart: on-failure
     environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:mysecretpassword@db:5432/postgres
+      DATABASE_URL: postgresql+psycopg2://rt_api:rt_api@db:5432/rt_api
       CELERY_BROKER_URL: redis://redis:6379/3
       CELERY_RESULT_BACKEND: redis://redis:6379/4
       FEED_REFRESH_INTERVAL_MINUTES: 10
@@ -158,25 +165,13 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
 
-  keycloak-db-init:
-    image: postgres:16-alpine
-    restart: "no"
-    environment:
-      PGPASSWORD: mysecretpassword
-    command: >
-      sh -c "psql -h db -U postgres -tc \"SELECT 1 FROM pg_database WHERE datname='keycloak'\" | grep -q 1
-      || createdb -h db -U postgres keycloak"
-    depends_on:
-      db:
-        condition: service_healthy
-
-  # Keycloak replaces Dex as the OIDC provider: it can broker several upstream
-  # providers onto ONE account, which Dex cannot do at all.
+  # Keycloak is the OIDC provider for both the admin app (via oauth2-proxy)
+  # and Traccar, which is a separate client with its own login.
   #
   # The port is 8090 both inside and outside the container on purpose. The
   # issuer URL is baked into every token, so the browser and the other
   # containers must reach Keycloak at the *identical* URL, hence the
-  # `keycloak` /etc/hosts entry the README documents (same trick Dex used).
+  # `keycloak` /etc/hosts entry the README documents.
   keycloak:
     image: quay.io/keycloak/keycloak:26.4
     command: start-dev --import-realm --http-port=8090
@@ -191,8 +186,8 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://db:5432/keycloak
-      KC_DB_USERNAME: postgres
-      KC_DB_PASSWORD: mysecretpassword
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     healthcheck:
@@ -208,19 +203,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      keycloak-db-init:
-        condition: service_completed_successfully
-
-  # Retained until the Phase 7 production cutover so Traccar (still a Dex
-  # client) keeps working and there is a rollback path. Not used by
-  # oauth2-proxy any more.
-  dex:
-    image: ghcr.io/dexidp/dex:v2.45.0
-    volumes:
-      - ./dev/dex/config.yaml:/etc/dex/config.yaml:ro
-    command: dex serve /etc/dex/config.yaml
-    ports:
-      - "5556:5556"
 
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.14.3
@@ -239,7 +221,11 @@ services:
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
       OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
-      OAUTH2_PROXY_SCOPE: "openid email profile"
+      # `groups` carries Keycloak group membership into the access token, which
+      # is how cafe-car decides who is a gtfs-admins admin. No ALLOWED_GROUPS:
+      # the admin app stays open to every realm account, and cafe-car's own
+      # scoping decides what each of them sees.
+      OAUTH2_PROXY_SCOPE: "openid email profile groups"
       OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
       OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "false"
       # `sub`: a stable Keycloak UUID that survives a display-name change and
@@ -266,7 +252,7 @@ services:
     environment:
       HTTP_PORT: 8080
       REDIS_URL: redis://redis:6379/1
-      DATABASE_URL: postgresql+psycopg2://postgres:mysecretpassword@db:5432/postgres
+      DATABASE_URL: postgresql+psycopg2://rt_api:rt_api@db:5432/rt_api
     expose:
       - "8080"
     depends_on:
@@ -280,25 +266,13 @@ services:
     restart: on-failure
     environment:
       REDIS_URL: redis://redis:6379/1
-      DATABASE_URL: postgresql+psycopg2://postgres:mysecretpassword@db:5432/postgres
+      DATABASE_URL: postgresql+psycopg2://rt_api:rt_api@db:5432/rt_api
       POLL_INTERVAL: 5
     depends_on:
       redis:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-
-  traccar-db-init:
-    image: postgres:16-alpine
-    restart: "no"
-    environment:
-      PGPASSWORD: mysecretpassword
-    command: >
-      sh -c "psql -h db -U postgres -tc \"SELECT 1 FROM pg_database WHERE datname='traccar'\" | grep -q 1
-      || createdb -h db -U postgres traccar"
-    depends_on:
-      db:
-        condition: service_healthy
 
   traccar:
     image: traccar/traccar:6.14.5
@@ -308,13 +282,20 @@ services:
       - "5055:5055"
     volumes:
       - ./dev/traccar/traccar.xml:/opt/traccar/conf/traccar.xml:ro
+    environment:
+      # Same mechanism prod uses, so the env-name mangling trap is exercised
+      # here first: Traccar inserts an underscore before each capital, making
+      # openid.clientSecret -> OPENID_CLIENT_SECRET, not OPENID_CLIENTSECRET.
+      # Spelling it wrong is silent; the container stays healthy and only
+      # /api/server 500s. See the comment block in dev/traccar/traccar.xml.
+      CONFIG_USE_ENVIRONMENT_VARIABLES: "true"
+      DATABASE_PASSWORD: traccar
+      OPENID_CLIENT_SECRET: dev-traccar-secret
     depends_on:
       db:
         condition: service_healthy
-      traccar-db-init:
-        condition: service_completed_successfully
-      dex:
-        condition: service_started
+      keycloak:
+        condition: service_healthy
       vehicle-poser:
         condition: service_started
 

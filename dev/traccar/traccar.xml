@@ -1,25 +1,54 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
+<!--
+  Secrets are deliberately ABSENT from this file, mirroring prod: the compose
+  service sets CONFIG_USE_ENVIRONMENT_VARIABLES=true, so DATABASE_PASSWORD and
+  OPENID_CLIENT_SECRET arrive as env vars and override anything here.
+
+  The env-name mapping is NOT simply "uppercase and drop the dots": Traccar
+  inserts an underscore before each capital letter first, so a camelCase config
+  key gains a separator:
+      database.password   -> DATABASE_PASSWORD      (no capitals; unchanged)
+      openid.clientSecret -> OPENID_CLIENT_SECRET   (note the extra underscore)
+  Getting it wrong is silent: the container stays healthy and only /api/server
+  500s. Dev goes through the same mechanism precisely so that trap can bite
+  here first rather than in prod.
+-->
 <properties>
     <entry key='database.driver'>org.postgresql.Driver</entry>
     <entry key='database.url'>jdbc:postgresql://db:5432/traccar</entry>
-    <entry key='database.user'>postgres</entry>
-    <entry key='database.password'>mysecretpassword</entry>
+    <entry key='database.user'>traccar</entry>
 
     <entry key='web.url'>http://localhost:8082</entry>
 
-    <!-- NOTE: for OIDC logins to auto-create their Traccar user, "registration"
-         must be enabled in the server settings (a DB-backed flag, off once the
-         first admin registers): as admin, Settings -> Server -> Permissions ->
-         Registration, or PUT /api/server with "registration": true -->
-
-
+    <!-- Keycloak, not Dex. Traccar is NOT behind oauth2-proxy; it is a separate
+         OIDC client with its own login. -->
     <entry key='openid.clientId'>traccar</entry>
-    <entry key='openid.clientSecret'>dev-traccar-secret</entry>
-    <entry key='openid.issuerUrl'>http://dex:5556</entry>
+    <entry key='openid.issuerUrl'>http://keycloak:8090/realms/gtfs</entry>
+
+    <!-- Traccar is admin-only. allowGroup is the gate: a realm account outside
+         gtfs-admins is refused at the callback and never gets a Traccar user at
+         all. adminGroup then makes the ones who pass Traccar administrators, so
+         they see every device without a per-user POST /api/permissions share.
+
+         Both read the `groups` claim (openid.groupsClaimName defaults to it).
+         Keycloak's `groups` client scope maps with full.path=false, so the value
+         is the bare name; a leading slash would match nothing and lock everyone
+         out. Locally: alice is in the group, bob is not.
+
+         openid.force is deliberately NOT set, so the local password login stays
+         available and cafe-car's REST API session login keeps working. -->
+    <entry key='openid.allowGroup'>gtfs-admins</entry>
+    <entry key='openid.adminGroup'>gtfs-admins</entry>
+
+    <!-- Auto-create the Traccar user for an OIDC login that passed allowGroup,
+         even with the server's own "registration" setting off. That pairing is
+         the point: the public sign-up form is closed, but group members still
+         provision themselves on first login. -->
+    <entry key='openid.allowRegistration'>true</entry>
 
     <!-- Forward each position to the vehicle-poser HTTP shim, which resolves the
-         driver's trip via driver-rules and writes the vehicle:{username}:{deviceId}
+         tracker's trip via railroad-club and writes the vehicle:{tracker_id}:{deviceId}
          Redis record that cafe-car reads. Do NOT switch this to forward.type=redis:
          that LPUSHes raw Position JSON (unbounded list, no TTL, no trip_id). -->
     <entry key='forward.enable'>true</entry>

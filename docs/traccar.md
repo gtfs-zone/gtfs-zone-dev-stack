@@ -32,42 +32,45 @@ current stop. Predictions carrying only a delay are not enough for that.
 - The shim writes the **exact** record shape the OwnTracks bridge used, keyed
   `vehicle:{username}:{deviceId}`; see `vehicle-poser`'s README for the field
   mapping (knots→m/s, ISO-8601→epoch, etc.).
-- Config lives in `dev/traccar/traccar.xml` (Postgres storage, Dex OIDC,
-  `forward.*` to the shim). The `traccar` DB is created by the one-off
-  `traccar-db-init` service inside the shared Postgres container.
+- Config lives in `dev/traccar/traccar.xml` (Postgres storage, Keycloak OIDC,
+  `forward.*` to the shim). The `traccar` role and database are created by
+  `dev/postgres/init-roles.sql` inside the shared Postgres container. Secrets
+  arrive as env vars from the compose service, as in prod.
 
 ## Auth & data model
 
-Three roles, deliberately kept simple:
+**Traccar is admin-only.** The Manager role is gone: there is no longer any way
+for a non-admin to hold a Traccar account.
 
 | Role | Who | Auth | Traccar object |
 |---|---|---|---|
-| **Admin** | us (operators) | internal password (`admin@local` / `admin`) | administrator user; owns the REST-created fleet devices |
-| **Manager** | bus company | Dex OIDC ("Login with OpenID") | regular user, auto-provisioned on first login |
-| **Driver** | the vehicle | none: device-only, QR-provisioned | Device (`uniqueId = username`), no user account |
+| **Admin** | us (operators) | Keycloak OIDC, must be in `gtfs-admins` | administrator user, auto-provisioned on first login; sees every device |
+| **Break-glass** | us, when SSO is down | internal password (`admin@local` / `admin`) | administrator user; owns the REST-created fleet devices, and is what cafe-car authenticates as |
+| **Driver** | the vehicle | none: device-only, QR-provisioned | Device (`uniqueId = tracker id`), no user account |
 
-Verified on the live stack: `registration:true`, `openIdEnabled:true`,
-`openIdForce:false`; a first-time Dex login auto-creates a regular Traccar user.
+The gate is two config keys, both reading the `groups` claim that Keycloak's
+`groups` client scope puts in the token (mapped `full.path=false`, so the value
+is the bare name and a leading slash would match nothing):
 
-**Registration flag posture: keep `registration=true`.** It is what lets OIDC
-auto-provision manager accounts on first login; disabling it breaks Dex-manager
-onboarding. Tradeoff: it also exposes self-service account registration in the
-web UI. Acceptable in dev; prod hardening (deferred) is `openid.force=true` to
-force SSO and hide the internal register/login form, gating account creation at
-Dex.
+- `openid.allowGroup=gtfs-admins` refuses anyone outside the group at the
+  callback. They never get a Traccar user at all.
+- `openid.adminGroup=gtfs-admins` makes the ones who pass administrators, which
+  is what lets them see every device.
+
+**Registration posture: `registration=false`, `openid.allowRegistration=true`.**
+That pairing is the point. The server flag being off closes the self-service
+sign-up form in the web UI, which would otherwise be a way straight past the
+group gate; `openid.allowRegistration` is what still lets a group member
+provision themselves on first OIDC login. `scripts/reset.sh` turns the server
+flag off after bootstrapping the break-glass admin.
+
+`openid.force` is deliberately **not** set: it would hide the internal login
+form, and that form is the break-glass path when Keycloak is down, as well as
+how cafe-car authenticates to the REST API.
 
 ## Known gaps (deferred, not blockers)
 
-1. **Managers see no devices by default.** Traccar scopes device visibility
-   per-user, and fleet devices are owned by `admin@local` (cafe-car creates them
-   via REST as that account). A freshly provisioned manager sees an empty device
-   list until devices are explicitly shared: `POST /api/permissions {userId,
-   deviceId}`, assigning devices to the manager, or promoting them to a Traccar
-   admin. The real fleet layer will need one of these.
-2. **Dex users can't auto-become admin.** Dex `staticPasswords` emit no `groups`
-   claim, so `openid.adminGroup` has nothing to match. Internal `admin@local`
-   stays the admin path in; prod would need a Dex connector that emits groups.
-3. **The QR / `uniqueId` is a bearer credential**: anyone who photographs it can
+1. **The QR / `uniqueId` is a bearer credential**: anyone who photographs it can
    impersonate that driver. Acceptable for public transit data now; per-device
    tokens / plausibility filtering are deferred.
 
@@ -91,9 +94,13 @@ path never kept, and it lives in the shared `db_data` volume.
 - The `:5055` osmand endpoint / QR base must be an address the **phone** can
   reach; `localhost` only works from the host. Parameterized via
   `TRACCAR_CLIENT_BASE`; set it to the public Traccar hostname in prod.
-- `docker compose down -v` wipes the shared `db_data` volume → Traccar data +
-  the `registration`/admin flags reset. Re-enable Registration (Settings →
-  Server → Permissions, or `PUT /api/server {"registration": true}`) on a fresh
-  volume for OIDC auto-provisioning to work again.
-- Browser OIDC login needs `dex` to resolve to `127.0.0.1` on the host
+- `docker compose down -v` wipes the shared `db_data` volume → Traccar data and
+  the `registration`/admin flags reset. `scripts/reset.sh` re-bootstraps the
+  break-glass admin and turns registration back off; OIDC auto-provisioning for
+  group members does not depend on that flag (`openid.allowRegistration` covers
+  it).
+- Browser OIDC login needs `keycloak` to resolve to `127.0.0.1` on the host
   (`/etc/hosts` entry) so the redirect to the issuer URL works.
+- A login that bounces back to the Traccar login page with no account created is
+  the group gate doing its job: the account is not in `gtfs-admins`. Locally,
+  alice is and bob is not.
