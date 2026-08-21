@@ -65,7 +65,8 @@ Leave the variable unset to build from the local `_DIR` path (default behavior).
 | flower | 5555 | Celery monitoring web UI |
 | keycloak | 8090 | OIDC provider (dev users + `fake-github`/`fake-google` broker realms). Needs a `keycloak` → 127.0.0.1 `/etc/hosts` entry |
 | mailpit | 8025 | Catches dev mail (Keycloak account-link verification) |
-| oauth2-proxy | 4180 | oauth2-proxy in front of admin |
+| oauth2-proxy | 4180 | The single authenticated edge. Path-routes between `yard-master` and `admin`, standing in for Traefik |
+| yard-master | 8080 (internal) | nginx serving the yard-master SPA from a bind-mounted `dist/`. Requires `pnpm build` in that checkout first |
 | vehicle-poser | 8080 (internal) | Traccar `json` HTTP-forward receiver→Redis vehicle position bridge |
 | trip-updogger | - | Redis→Redis worker: schedule-derived trip updates for positions with no predictions |
 | hell-gate-bridge | - | Amtrak live tracker→cafe-car `/ingest/*` (positions + trip-updates) |

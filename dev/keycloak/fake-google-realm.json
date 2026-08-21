@@ -32,7 +32,8 @@
       "lastName": "Local",
       "credentials": [
         { "type": "password", "value": "password", "temporary": false }
-      ]
+      ],
+      "realmRoles": ["default-roles-fake-google"]
     }
   ]
 }

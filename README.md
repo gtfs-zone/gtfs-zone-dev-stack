@@ -28,7 +28,7 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 
 | Port | Service |
 |------|---------|
-| 4180 | Admin app via oauth2-proxy |
+| 4180 | yard-master SPA and the `/api` it calls, via oauth2-proxy. The old SQLAdmin pages live here too |
 | 8000 | GTFS-RT public API |
 | 5432 | PostgreSQL |
 | 6379 | Redis |
@@ -38,6 +38,7 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 | 8025 | Mailpit (catches all dev mail) |
 | 8082 | Traccar web UI + REST API (PoC) |
 | 5055 | Traccar phone-client protocol (osmand) |
+| - | yard-master (nginx, no host port; reached only through 4180) |
 
 ## Dev Credentials
 
@@ -46,6 +47,40 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 - bob@local / password
 
 **Keycloak admin console** (http://keycloak:8090/admin): `admin` / `admin`
+
+## What is behind :4180
+
+One oauth2-proxy fronts two apps, which is how prod is arranged on
+`manage.rt.gtfs.zone`: nginx serves the SPA at `/`, and `/api/*` on the same
+hostname goes to cafe-car. Same origin on purpose, so there is no CORS, no
+preflight on writes, and the `X-Auth-Request-*` headers arrive untouched.
+`OAUTH2_PROXY_UPSTREAMS` is the local stand-in for Traefik's path rules:
+
+| Path | Goes to |
+|---|---|
+| `/` and everything unmatched | `yard-master` (nginx, the SPA) |
+| `/api/*` | `admin` (cafe-car's JSON API) |
+| `/account`, `/account/*` | `admin` (identity linking, still server-rendered) |
+| `/feed/*`, `/tracker/*`, `/tracker-rule/*`, `/service-alert/*`, `/informed-entity/*`, `/statics/*` | `admin` (the old SQLAdmin pages) |
+
+The old admin's index page is the one casualty: `/` now belongs to the SPA. Its
+list and detail pages are still there, so `http://localhost:4180/feed/list`
+reaches SQLAdmin for a side-by-side comparison.
+
+**The SPA is not built by this stack.** Its `dist/` is bind-mounted, so build it
+in the yard-master checkout first, and rebuild after every change:
+
+```bash
+cd ../yard-master
+VITE_RT_BASE=http://localhost:8000 pnpm build          # once
+VITE_RT_BASE=http://localhost:8000 pnpm build --watch  # or leave running
+```
+
+Without `VITE_RT_BASE` a production build resolves path-only feed URLs against
+the deployed feed server rather than this stack's `api` on :8000. A browser
+refresh picks up a rebuild; no `docker compose` command is needed.
+
+An empty `dist/` shows up as a 404 at `/`, not as an error.
 
 ## Identity (Keycloak)
 
@@ -61,6 +96,24 @@ identical `http://keycloak:8090`.
 ```
 127.0.0.1  keycloak
 ```
+
+### Realm client scopes
+
+`dev/keycloak/gtfs-realm.json` must not carry a top-level `clientScopes` list.
+Keycloak creates its built-in scopes (`profile`, `email`, `roles`, `basic`, ...)
+only for a realm that does not define its own, so a list here replaces them
+rather than adding to it. Every login then dies at the auth endpoint with
+`invalid_scope`, and the account console answers "Sorry, an unexpected error has
+occurred". Extra claims go on a client's `protocolMappers` instead, which is
+where the `groups` claim oauth2-proxy passes to cafe-car comes from.
+
+### Imported users need a default role
+
+A user in a realm import that lists no `realmRoles` gets none, not even
+`default-roles-<realm>`, which is where `view-profile` and `manage-account`
+come from. Without it the account console loads and then dies with "Something
+went wrong", because its REST calls come back 401. Every human user in
+`dev/keycloak/*.json` names its realm's default role for that reason.
 
 ### Fake upstream providers
 

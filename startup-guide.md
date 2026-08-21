@@ -17,8 +17,9 @@ Brings the stack up from a clean slate and provisions three feeds:
 The two pollers authenticate to cafe-car's `/ingest/*` with the shared
 `INGEST_API_TOKEN` and publish under a **fixed** `INGEST_VEHICLE_ID` that must
 equal a `Tracker.id`: these are wired in `docker-compose.yml`
-(`amtrak-live`, `columbia-county`). West's tracker id is a secret pet-name that
-the driver's QR encodes; nothing else needs to know it.
+(`amtrak-live`, `columbia-county`) and created by the `seed` service. West's
+tracker keeps a generated surrogate id; the secret pet-name its QR encodes is
+`device_key`, which is a separate column and never appears in a URL.
 
 Trip resolution keys:
 - Pollers POST an explicit `trip_id`, so they need **no** `TrackerRule`s.
@@ -94,38 +95,22 @@ docker compose exec -T db psql -U postgres -d traccar \
 This only works on a truly empty user table; if it fails, see **Troubleshooting →
 Traccar admin**.
 
-## 4. Provision the three feeds
+## 4. Provision the feeds
 
-Run from the cafe-car repo. The `TRACCAR_*` overrides point the script at the
-host-published Traccar (the in-container default `http://traccar:8082` won't
-resolve from the host):
+**Amtrak and Columbia County need nothing here.** The `seed` service creates
+them during `docker compose up`, along with alice@local's cafe-car account. It
+is what pins their `Tracker.id` to the `INGEST_VEHICLE_ID` literals the two
+pollers are configured with, which the CLI below deliberately cannot do:
+`provision_source.py` always generates a surrogate id. Check them with
+`docker compose logs seed`.
+
+That leaves west. Run from the cafe-car repo. The `TRACCAR_*` overrides point
+the script at the host-published Traccar (the in-container default
+`http://traccar:8082` won't resolve from the host):
 
 ```bash
 cd ~/Documents/cafe-car
 export TRACCAR_URL=http://localhost:8082 TRACCAR_EMAIL=admin@local TRACCAR_PASSWORD=admin
-```
-
-**Amtrak** (poller; fixed id must match compose `INGEST_VEHICLE_ID=amtrak-live`;
-no Traccar device needed; it isn't a phone):
-
-```bash
-uv run python scripts/provision_source.py \
-  --feed-name amtrak \
-  --static-feed-url https://content.amtrak.com/content/gtfs/GTFS.zip \
-  --nickname "Amtrak" \
-  --tracker-id amtrak-live \
-  --skip-traccar
-```
-
-**Columbia County** (poller; fixed id must match `INGEST_VEHICLE_ID=columbia-county`):
-
-```bash
-uv run python scripts/provision_source.py \
-  --feed-name columbia-county \
-  --static-feed-url https://raw.githubusercontent.com/columbia-county-ny-transit/gtfs-generator/refs/heads/main/columbia_county_gtfs.zip \
-  --nickname "Columbia County" \
-  --tracker-id columbia-county \
-  --skip-traccar
 ```
 
 **West bus** (real device: auto-generated secret id + a schedule rule; DO create

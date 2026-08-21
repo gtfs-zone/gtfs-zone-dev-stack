@@ -9,10 +9,10 @@
 # the same Postgres instance) and the `redis` volume. Everything in them is
 # gone: feeds, trackers, positions, Keycloak users/sessions.
 #
-# Recreates: a fresh Keycloak realm import (dev/keycloak/*.json), the
-# alice@local cafe-car account (in gtfs-admins, so an admin in both apps),
-# Traccar's break-glass admin account, and the three
-# default feeds (amtrak, columbia-county, west) via provision_default_feeds.sh.
+# Recreates: a fresh Keycloak realm import (dev/keycloak/*.json), Traccar's
+# break-glass admin account, and the west feed via provision_default_feeds.sh.
+# alice@local's cafe-car account and the amtrak / columbia-county feeds come
+# up with the stack now, from the `seed` service in docker-compose.yml.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -23,6 +23,15 @@ docker compose down -v
 
 echo "==> up --build --wait"
 docker compose up --build --wait
+
+echo "==> waiting for Traccar"
+# traccar has no healthcheck, so `up --wait` returns the moment the container
+# is running - well before the JVM is accepting HTTP. Without this the POST
+# below fails with curl 56 and takes the whole script down under `set -e`.
+for _ in $(seq 1 60); do
+  curl -sf -o /dev/null http://localhost:8082/api/server && break
+  sleep 2
+done
 
 echo "==> bootstrap Traccar admin"
 existing_admin=$(docker compose exec -T db psql -U postgres -d traccar -tAc \
@@ -43,38 +52,5 @@ echo "==> disabling Traccar self-registration"
 docker compose exec -T db psql -U postgres -d traccar -qtAc \
   "update tc_servers set registration = false;" >/dev/null
 
-echo "==> bootstrap alice@local's cafe-car account"
-kc_token=$(curl -sf -X POST \
-  http://localhost:8090/realms/master/protocol/openid-connect/token \
-  -d client_id=admin-cli -d grant_type=password \
-  -d username=admin -d password=admin | jq -r .access_token)
-
-alice_sub=$(curl -sf "http://localhost:8090/admin/realms/gtfs/users?username=alice" \
-  -H "Authorization: Bearer $kc_token" | jq -r '.[0].id')
-
-if [ -z "$alice_sub" ] || [ "$alice_sub" = "null" ]; then
-  echo "    could not find Keycloak user 'alice' in realm 'gtfs'; aborting" >&2
-  exit 1
-fi
-
-# admin runs with DEBUG=true, which makes it decode (but not verify the
-# signature of) an Authorization: Bearer JWT for email/name claims: see
-# cafe-car/src/cafe_car/admin/auth.py OIDCAuthBackend.authenticate(). A plain
-# curl carrying alice's *real* Keycloak subject drives the same
-# resolve_login() path a browser login would, without a browser or an OIDC
-# flow, and using her real subject means a later real login lands on this
-# same account instead of minting a duplicate.
-jwt_payload=$(python3 -c "
-import base64, json, sys
-claims = {'sub': sys.argv[1], 'email': 'alice@local', 'email_verified': True, 'name': 'Alice Local', 'groups': ['gtfs-admins']}
-def b64(d): return base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b'=').decode()
-print(f\"{b64({'alg': 'none', 'typ': 'JWT'})}.{b64(claims)}.\")
-" "$alice_sub")
-
-curl -sfL http://localhost:8001/ \
-  -H "X-Auth-Request-User: $alice_sub" \
-  -H "Authorization: Bearer $jwt_payload" >/dev/null
-echo "    alice@local ready (keycloak subject $alice_sub)"
-
-echo "==> provisioning default feeds"
+echo "==> provisioning the west feed"
 ./scripts/provision_default_feeds.sh

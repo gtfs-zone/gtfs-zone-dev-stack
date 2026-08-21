@@ -50,6 +50,19 @@
             "access.token.claim": "true",
             "userinfo.token.claim": "true"
           }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
         }
       ],
       "defaultClientScopes": [
@@ -58,8 +71,7 @@
         "email",
         "profile",
         "roles",
-        "web-origins",
-        "groups"
+        "web-origins"
       ]
     },
     {
@@ -98,20 +110,8 @@
         "email",
         "profile",
         "roles",
-        "web-origins",
-        "groups"
-      ]
-    }
-  ],
-  "clientScopes": [
-    {
-      "name": "groups",
-      "description": "Realm group memberships, as a flat `groups` claim.",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      },
+        "web-origins"
+      ],
       "protocolMappers": [
         {
           "name": "groups",
@@ -216,6 +216,9 @@
       ],
       "groups": [
         "/gtfs-admins"
+      ],
+      "realmRoles": [
+        "default-roles-gtfs"
       ]
     },
     {
@@ -231,6 +234,9 @@
           "value": "password",
           "temporary": false
         }
+      ],
+      "realmRoles": [
+        "default-roles-gtfs"
       ]
     }
   ]
