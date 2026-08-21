@@ -212,6 +212,9 @@ services:
       DATABASE_URL: postgresql+psycopg2://rt_api:rt_api@db:5432/rt_api
       CELERY_BROKER_URL: redis://redis:6379/3
       CELERY_RESULT_BACKEND: redis://redis:6379/4
+      # Where load-status events are published; cafe-car subscribes on the same
+      # db and forwards them to the SPA over SSE.
+      REDIS_URL: redis://redis:6379/1
       FEED_REFRESH_INTERVAL_MINUTES: 10
       CELERY_WORKER_CONCURRENCY: 2
       CELERY_MAX_TASKS_PER_CHILD: 10
@@ -241,6 +244,7 @@ services:
     environment:
       CELERY_BROKER_URL: redis://redis:6379/3
       CELERY_RESULT_BACKEND: redis://redis:6379/4
+      REDIS_URL: redis://redis:6379/1
     depends_on:
       redis:
         condition: service_healthy
