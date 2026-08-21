@@ -32,6 +32,49 @@ services:
       interval: 5s
       retries: 5
 
+  # Object storage for uploaded GTFS zips. Prod runs the same binary in k3s;
+  # the S3 API is what both cafe-car and schedule-foamer talk to, so pointing
+  # S3_ENDPOINT at AWS, R2 or B2 instead would change nothing else.
+  #
+  # Published on 3900 so a host-side aws-cli or `pnpm dev` can reach the same
+  # bucket the containers do.
+  garage:
+    image: dxflrs/garage:v2.1.0
+    ports:
+      - "3900:3900"
+      - "3903:3903"
+    volumes:
+      - ./dev/garage/garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    healthcheck:
+      # The admin API answers before the layout exists, which is exactly what
+      # garage-init needs: healthy here means "reachable", not "usable".
+      test: ["CMD", "/garage", "-c", "/etc/garage.toml", "status"]
+      interval: 5s
+      retries: 20
+
+  # Garage will not accept a single write until a layout is applied, and fails
+  # with a 500 that never mentions layouts. So this is a service and not a
+  # README step: a stack that comes up without it has a broken upload endpoint
+  # and no way to tell.
+  garage-init:
+    build:
+      context: ./dev/garage
+    environment:
+      S3_BUCKET: ${S3_BUCKET:-gtfs-feeds}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-GK0123456789abcdef01234567}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+    volumes:
+      - ./dev/garage/garage.toml:/etc/garage.toml:ro
+      # The CLI addresses the node by its key pair, which the node generates on
+      # first boot into its metadata dir. Read-only: this container only ever
+      # talks over RPC, and the node owns the directory.
+      - garage_meta:/var/lib/garage/meta:ro
+    depends_on:
+      garage:
+        condition: service_healthy
+
   migrate:
     image: ${CAFE_CAR_IMAGE:-cafe-car:local}
     build:
@@ -93,6 +136,13 @@ services:
       TRACCAR_PASSWORD: admin
       TRACCAR_CLIENT_BASE: http://localhost:5055
       INGEST_API_TOKEN: dev-ingest-token
+      # Object storage for uploaded GTFS zips. Same bucket and key as every
+      # other service here; garage-init imports the key.
+      S3_ENDPOINT: http://garage:3900
+      S3_BUCKET: ${S3_BUCKET:-gtfs-feeds}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-GK0123456789abcdef01234567}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      S3_REGION: garage
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 5s
@@ -104,6 +154,8 @@ services:
       redis:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+      garage-init:
         condition: service_completed_successfully
 
   admin:
@@ -133,12 +185,21 @@ services:
       TRACCAR_EMAIL: admin@local
       TRACCAR_PASSWORD: admin
       TRACCAR_CLIENT_BASE: http://localhost:5055
+      # Object storage for uploaded GTFS zips. Same bucket and key as every
+      # other service here; garage-init imports the key.
+      S3_ENDPOINT: http://garage:3900
+      S3_BUCKET: ${S3_BUCKET:-gtfs-feeds}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-GK0123456789abcdef01234567}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      S3_REGION: garage
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+      garage-init:
         condition: service_completed_successfully
 
   celery-worker:
@@ -154,12 +215,21 @@ services:
       FEED_REFRESH_INTERVAL_MINUTES: 10
       CELERY_WORKER_CONCURRENCY: 2
       CELERY_MAX_TASKS_PER_CHILD: 10
+      # Object storage for uploaded GTFS zips. Same bucket and key as every
+      # other service here; garage-init imports the key.
+      S3_ENDPOINT: http://garage:3900
+      S3_BUCKET: ${S3_BUCKET:-gtfs-feeds}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-GK0123456789abcdef01234567}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      S3_REGION: garage
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+      garage-init:
         condition: service_completed_successfully
 
   celery-beat:
@@ -417,5 +487,7 @@ services:
 volumes:
   db_data:
   redis_data:
+  garage_meta:
+  garage_data:
   hell_gate_beat:
   hell_gate_beat_buswhere:

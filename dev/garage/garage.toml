@@ -1,0 +1,28 @@
+# Single-node Garage for the local stack. Prod is the same binary with a real
+# rpc_secret and more than one replica; see deploy-gtfs-rt.
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+
+# One node, so one copy. Garage refuses to start with a replication factor it
+# cannot satisfy, and three would need three nodes.
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "garage:3901"
+# Dev only, and the whole reason this file is not the prod one. Garage will not
+# start without it even single-node, because it is also the cluster join secret.
+rpc_secret = "6d6f6f6e6c69676874206d696c65206c6f63616c206465762072706320736563"
+
+[s3_api]
+# Must match S3_REGION in every app that talks to this bucket: the region is
+# part of the SigV4 signature, so a mismatch is a 403 and not a redirect.
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "dev-garage-admin-token"
+metrics_token = "dev-garage-metrics-token"

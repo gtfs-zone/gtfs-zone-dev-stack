@@ -6,13 +6,17 @@
 # isn't worth it for a local-only stack.
 #
 # Wipes: the `db` volume (cafe-car's app DB *and* the `keycloak` DB living in
-# the same Postgres instance) and the `redis` volume. Everything in them is
-# gone: feeds, trackers, positions, Keycloak users/sessions.
+# the same Postgres instance), the `redis` volume, and Garage's `garage_meta`
+# and `garage_data` volumes. Everything in them is gone: feeds, trackers,
+# positions, Keycloak users/sessions, and every uploaded GTFS zip.
 #
 # Recreates: a fresh Keycloak realm import (dev/keycloak/*.json), Traccar's
 # break-glass admin account, and the west feed via provision_default_feeds.sh.
 # alice@local's cafe-car account and the amtrak / columbia-county feeds come
-# up with the stack now, from the `seed` service in docker-compose.yml.
+# up with the stack now, from the `seed` service in docker-compose.yml. So does
+# Garage's layout, bucket and access key, from `garage-init`: an empty Garage
+# rejects every write with a 500 that never mentions layouts, so that is a
+# service the apps depend on rather than a step anybody has to remember.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
