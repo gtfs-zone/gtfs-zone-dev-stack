@@ -310,7 +310,9 @@ services:
   # The yard-master SPA. Built on the host (`pnpm build` in the yard-master
   # checkout) and bind-mounted, not built here: the image is artifact-only, the
   # same as test-track's, so a builder stage would exist for this stack alone.
-  # `pnpm build --watch` on the host plus a browser refresh is the edit loop.
+  # For a real edit loop, run `pnpm dev` on the host instead (vite's :8091,
+  # HMR, forges the oauth2-proxy headers itself); rebuild `dist/` only to
+  # check the same-origin nginx/oauth2-proxy path this service serves.
   #
   # No published port. It is only ever reached through oauth2-proxy, which is
   # the whole point of running it here rather than on vite's :8091. No
