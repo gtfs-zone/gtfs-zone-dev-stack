@@ -39,6 +39,7 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 | 8082 | Traccar web UI + REST API (PoC) |
 | 5055 | Traccar phone-client protocol (osmand) |
 | - | yard-master (nginx, no host port; reached only through 4180) |
+| 8091 | yard-master `pnpm dev` (Vite dev server, HMR, not routed through oauth2-proxy) |
 
 ## Dev Credentials
 
@@ -67,20 +68,44 @@ The old admin's index page is the one casualty: `/` now belongs to the SPA. Its
 list and detail pages are still there, so `http://localhost:4180/feed/list`
 reaches SQLAdmin for a side-by-side comparison.
 
+**Object storage (Garage).** `garage` and `garage-init` stand in for the same
+`dxflrs/garage` binary prod runs in k3s: `S3_ENDPOINT=http://garage:3900`
+against the `gtfs-feeds` bucket, holding uploaded GTFS zips for `admin` to
+write/serve and for `schedule-foamer` to read. `garage-init` applies the
+layout and imports the access key once, on first boot; `garage`'s own health
+check only means "reachable," not "usable," which is why `garage-init` exists
+as a separate step.
+
 **The SPA is not built by this stack.** Its `dist/` is bind-mounted, so build it
-in the yard-master checkout first, and rebuild after every change:
+in the yard-master checkout at least once before `:4180` will show anything:
 
 ```bash
 cd ../yard-master
-VITE_RT_BASE=http://localhost:8000 pnpm build          # once
-VITE_RT_BASE=http://localhost:8000 pnpm build --watch  # or leave running
+VITE_RT_BASE=http://localhost:8000 pnpm build
 ```
 
 Without `VITE_RT_BASE` a production build resolves path-only feed URLs against
-the deployed feed server rather than this stack's `api` on :8000. A browser
-refresh picks up a rebuild; no `docker compose` command is needed.
+the deployed feed server rather than this stack's `api` on :8000. Re-run this
+after every change you want to see at `:4180`; an empty `dist/` shows up as a
+404 at `/`, not as an error.
 
-An empty `dist/` shows up as a 404 at `/`, not as an error.
+**For a real edit loop, use `pnpm dev` instead of rebuilding `dist/`.** It is
+its own dev server at `http://localhost:8091` (not routed through oauth2-proxy),
+with real Vite HMR. It forges the `X-Auth-Request-*` headers oauth2-proxy would
+normally set, logging in as alice by default (a real Keycloak-issued UUID looked
+up from this stack's `keycloak`, so it's the same account `:4180` gives her; see
+`vite.config.ts` for `DEV_SUBJECT`/`DEV_EMAIL`/`DEV_NAME`/`DEV_USERNAME` to log
+in as someone else), and proxies `/api` straight to `admin` on :8001. `RT_BASE`
+resolves to this stack's `api` on :8000 automatically in dev mode, no env var
+needed:
+
+```bash
+cd ../yard-master
+pnpm dev
+```
+
+`:4180` is still the one to use for testing same-origin behavior against the
+real nginx artifact and real oauth2-proxy headers.
 
 ## Identity (Keycloak)
 
