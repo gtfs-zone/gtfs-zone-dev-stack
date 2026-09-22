@@ -90,7 +90,7 @@ services:
 
   # One-shot dev fixture: alice@local's account, plus the two feeds the
   # hell-gate-bridge pollers publish into. Their Tracker.id must equal the
-  # INGEST_VEHICLE_ID literals on those services below, which is why the seed
+  # INGEST_TRACKER_ID literals on those services below, which is why the seed
   # pins the id instead of taking the generated surrogate. Guarded by DEBUG:
   # the entry point ships in the production wheel and refuses to run without
   # it. The `west` feed stays in scripts/provision_default_feeds.sh, since it
@@ -455,7 +455,9 @@ services:
       CAFE_CAR_INGEST_URL: http://api:8000
       INGEST_API_TOKEN: dev-ingest-token
       # Must equal the amtrak Tracker.id provisioned via scripts/provision_source.py
-      # (cafe-car's gtfs_rt.py scans vehicle:{tracker.id}:*).
+      # (cafe-car keys live positions as vehicle:{tracker_id}[:{vehicle_id}]).
+      # INGEST_VEHICLE_ID is the old name, kept so an older image still reads it.
+      INGEST_TRACKER_ID: amtrak-live
       INGEST_VEHICLE_ID: amtrak-live
     volumes:
       - hell_gate_beat:/app/beat
@@ -481,6 +483,8 @@ services:
       CAFE_CAR_INGEST_URL: http://api:8000
       INGEST_API_TOKEN: dev-ingest-token
       # Must equal the columbia-county Tracker.id provisioned in cafe-car.
+      # INGEST_VEHICLE_ID is the old name, kept so an older image still reads it.
+      INGEST_TRACKER_ID: columbia-county
       INGEST_VEHICLE_ID: columbia-county
     volumes:
       - hell_gate_beat_buswhere:/app/beat

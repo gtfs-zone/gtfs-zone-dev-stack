@@ -6,7 +6,7 @@
 #
 # amtrak and columbia-county are no longer here. They are created by the `seed`
 # service on `docker compose up`, which is also what pins their Tracker.id to
-# the INGEST_VEHICLE_ID literals the hell-gate-bridge pollers are configured
+# the INGEST_TRACKER_ID literals the hell-gate-bridge pollers are configured
 # with.
 #
 # Runs from a host checkout of cafe-car (the running api/admin containers

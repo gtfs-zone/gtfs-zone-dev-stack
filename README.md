@@ -271,7 +271,7 @@ local account is an admin in both apps.
 ## Vehicle locations (Traccar)
 
 Vehicle positions are ingested through **Traccar** → `vehicle-poser` HTTP shim →
-Redis (`vehicle:{username}:{deviceId}`, 60s TTL) → cafe-car. This replaced the
+Redis (`vehicle:{tracker_id}:{deviceId}`, 60s TTL) → cafe-car. This replaced the
 retired OwnTracks → MQTT path. Drivers are provisioned with a QR / config URL
 generated per Driver in the cafe-car admin app. See **[docs/traccar.md](docs/traccar.md)**
 for the architecture, auth/data model, gotchas, and retention.

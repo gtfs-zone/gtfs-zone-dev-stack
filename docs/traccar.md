@@ -16,7 +16,7 @@ Traccar Client app (phone)
                             └─> Redis  vehicle:{tracker_id}:{deviceId}  (60s TTL)
                                     ├─> cafe-car      (serves GTFS-RT feeds)
                                     └─> trip-updogger (schedule-derived
-                                            trip_update:{trip_id}, 300s TTL)
+                                            trip_update:{tracker_id}:{trip_id}, 300s TTL)
 ```
 
 A Traccar fix is bare lat/lon: vehicle-poser sets no `current_stop_sequence`,
@@ -30,7 +30,7 @@ current stop. Predictions carrying only a delay are not enough for that.
   the cafe-car admin app. cafe-car auto-creates the matching Traccar device
   (`uniqueId = username`) via REST when the Driver is created.
 - The shim writes the **exact** record shape the OwnTracks bridge used, keyed
-  `vehicle:{username}:{deviceId}`; see `vehicle-poser`'s README for the field
+  `vehicle:{tracker_id}:{deviceId}`; see `vehicle-poser`'s README for the field
   mapping (knots→m/s, ISO-8601→epoch, etc.).
 - Config lives in `dev/traccar/traccar.xml` (Postgres storage, Keycloak OIDC,
   `forward.*` to the shim). The `traccar` role and database are created by

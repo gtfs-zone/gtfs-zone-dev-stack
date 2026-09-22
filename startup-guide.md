@@ -15,7 +15,7 @@ Brings the stack up from a clean slate and provisions three feeds:
 | West bus | `west` | a real Traccar phone device | server-side, from `TrackerRule`s | **driver scans a QR** |
 
 The two pollers authenticate to cafe-car's `/ingest/*` with the shared
-`INGEST_API_TOKEN` and publish under a **fixed** `INGEST_VEHICLE_ID` that must
+`INGEST_API_TOKEN` and publish under a **fixed** `INGEST_TRACKER_ID` that must
 equal a `Tracker.id`: these are wired in `docker-compose.yml`
 (`amtrak-live`, `columbia-county`) and created by the `seed` service. West's
 tracker keeps a generated surrogate id; the secret pet-name its QR encodes is
@@ -99,7 +99,7 @@ Traccar admin**.
 
 **Amtrak and Columbia County need nothing here.** The `seed` service creates
 them during `docker compose up`, along with alice@local's cafe-car account. It
-is what pins their `Tracker.id` to the `INGEST_VEHICLE_ID` literals the two
+is what pins their `Tracker.id` to the `INGEST_TRACKER_ID` literals the two
 pollers are configured with, which the CLI below deliberately cannot do:
 `provision_source.py` always generates a surrogate id. Check them with
 `docker compose logs seed`.
