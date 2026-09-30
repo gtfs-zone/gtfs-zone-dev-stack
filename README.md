@@ -6,11 +6,13 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 
 1. Clone all repos as siblings:
    ```bash
-   git clone <redis-gtfs-rt-api>
-   git clone <schedule-foamer>
-   git clone <vehicle-poser>
-   git clone <hell-gate-bridge>
-   git clone <music-student>
+   git clone https://github.com/gtfs-zone/cafe-car.git
+   git clone https://github.com/gtfs-zone/schedule-foamer.git
+   git clone https://github.com/gtfs-zone/vehicle-poser.git
+   git clone https://github.com/gtfs-zone/trip-updogger.git
+   git clone https://github.com/gtfs-zone/hell-gate-bridge.git
+   git clone https://github.com/gtfs-zone/yard-master.git
+   git clone https://github.com/gtfs-zone/music-student.git
    ```
 
 2. Copy the example env file:
@@ -36,7 +38,7 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 | 8001 | Admin app (direct, no auth) |
 | 8090 | Keycloak OIDC provider |
 | 8025 | Mailpit (catches all dev mail) |
-| 8082 | Traccar web UI + REST API (PoC) |
+| 8082 | Traccar web UI + REST API |
 | 5055 | Traccar phone-client protocol (osmand) |
 | - | yard-master (nginx, no host port; reached only through 4180) |
 | 8091 | yard-master `pnpm dev` (Vite dev server, HMR, not routed through oauth2-proxy) |
