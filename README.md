@@ -43,6 +43,50 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 | - | rt-manager (nginx, no host port; reached only through 4180) |
 | 8091 | rt-manager `pnpm dev` (Vite dev server, HMR, not routed through oauth2-proxy) |
 
+## Build contexts and images
+
+`.env` (gitignored, copy from `.env.example`) controls two things:
+
+**Build context paths**: where to find local repo checkouts:
+```
+RT_API_DIR=../gtfs-zone-rt-api
+STATIC_IMPORTER_DIR=../gtfs-zone-static-importer
+RT_DELAY_ESTIMATOR_DIR=../gtfs-zone-rt-delay-estimator
+RT_TRACCAR_RECEIVER_DIR=../gtfs-zone-rt-traccar-receiver
+```
+
+**Image overrides**: optional, to pull from a registry instead of building:
+```
+RT_API_IMAGE=ghcr.io/gtfs-zone/gtfs-zone-rt-api:latest
+```
+
+To use a registry image instead of building locally, set the `_IMAGE` variable and pull:
+```bash
+docker compose pull api migrate admin
+```
+Leave the variable unset to build from the local `_DIR` path (default behavior).
+
+## Postgres Roles
+
+One role and database per service, created by `dev/postgres/init-roles.sql` on
+first boot of the `db` volume, mirroring the CNPG topology in prod:
+
+- `rt_api` / `rt_api`: rt-api (api, admin, migrate) and the Celery services
+- `keycloak` / `keycloak`: Keycloak
+- `traccar` / `traccar`: Traccar
+
+`postgres` / `mysecretpassword` is still the superuser, for psql and the reset
+script. The init script only runs on an empty data directory, so switching to
+this layout needs `docker compose down -v` (`scripts/reset.sh`).
+
+## Redis DB Allocation
+
+- DB 0: oauth2-proxy session storage in prod. The dev oauth2-proxy has no
+  redis session store configured, so locally this DB stays empty.
+- DB 1: api + rt-traccar-receiver + rt-delay-estimator (vehicle position + trip-update data)
+- DB 3: Celery broker (static-importer tasks)
+- DB 4: Celery result backend
+
 ## Dev Credentials
 
 **Admin login** (via http://localhost:4180):
