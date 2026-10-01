@@ -1,0 +1,43 @@
+publiccodeYmlVersion: "0.4"
+
+name: GTFS.zone Dev Stack
+url: "https://github.com/gtfs-zone/gtfs-zone-dev-stack"
+
+platforms:
+  - linux
+
+categories:
+  - it-development
+
+developmentStatus: beta
+
+softwareType: "standalone/other"
+
+description:
+  en:
+    shortDescription: >
+      A Docker Compose environment that runs the gtfs.zone realtime services locally with one command.
+    longDescription: >
+      GTFS.zone Dev Stack runs the gtfs.zone realtime services and their
+      dependencies locally with Docker Compose: rt-api, the workers, the
+      manager, PostgreSQL, Redis and the auth proxy. It builds each service
+      from a sibling checkout of its repo, so a change can be tested against
+      the whole stack before it is released.
+    features:
+      - One-command local stack with Docker Compose
+      - Builds each service from a sibling checkout
+      - The same auth path as production
+
+legal:
+  license: AGPL-3.0-or-later
+
+maintenance:
+  type: community
+  contacts:
+    - name: Max Katz-Christy
+      email: maxkatzchristy@gmail.com
+
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - en
