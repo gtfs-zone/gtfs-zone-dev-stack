@@ -3,9 +3,9 @@
 #   docker compose -f docker-compose.yml -f docker-compose.dualrun.yml up --build
 #
 # Points the Traccar shim at a shadow key namespace so it can run alongside the
-# live OwnTracks feed without clobbering the `vehicle:*` keys cafe-car serves.
+# live OwnTracks feed without clobbering the `vehicle:*` keys rt-api serves.
 # Compare the two feeds with `python scripts/compare_pipelines.py`.
 services:
-  vehicle-poser:
+  rt-traccar-receiver:
     environment:
       VEHICLE_KEY_PREFIX: shadow:vehicle

@@ -1,4 +1,4 @@
-# music-student
+# gtfs-zone-dev-stack
 
 Local development environment for the GTFS-RT project. Runs all services with a single command.
 
@@ -6,18 +6,18 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 
 1. Clone all repos as siblings:
    ```bash
-   git clone https://github.com/gtfs-zone/cafe-car.git
-   git clone https://github.com/gtfs-zone/schedule-foamer.git
-   git clone https://github.com/gtfs-zone/vehicle-poser.git
-   git clone https://github.com/gtfs-zone/trip-updogger.git
-   git clone https://github.com/gtfs-zone/hell-gate-bridge.git
-   git clone https://github.com/gtfs-zone/yard-master.git
-   git clone https://github.com/gtfs-zone/music-student.git
+   git clone https://github.com/gtfs-zone/gtfs-zone-rt-api.git
+   git clone https://github.com/gtfs-zone/gtfs-zone-static-importer.git
+   git clone https://github.com/gtfs-zone/gtfs-zone-rt-traccar-receiver.git
+   git clone https://github.com/gtfs-zone/gtfs-zone-rt-delay-estimator.git
+   git clone https://github.com/gtfs-zone/gtfs-zone-rt-pollers.git
+   git clone https://github.com/gtfs-zone/gtfs-zone-rt-manager.git
+   git clone https://github.com/gtfs-zone/gtfs-zone-dev-stack.git
    ```
 
 2. Copy the example env file:
    ```bash
-   cd music-student
+   cd dev-stack
    cp .env.example .env
    ```
 
@@ -30,7 +30,7 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 
 | Port | Service |
 |------|---------|
-| 4180 | yard-master SPA and the `/api` it calls, via oauth2-proxy. The old SQLAdmin pages live here too |
+| 4180 | rt-manager SPA and the `/api` it calls, via oauth2-proxy. The old SQLAdmin pages live here too |
 | 8000 | GTFS-RT public API |
 | 5432 | PostgreSQL |
 | 6379 | Redis |
@@ -40,8 +40,8 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 | 8025 | Mailpit (catches all dev mail) |
 | 8082 | Traccar web UI + REST API |
 | 5055 | Traccar phone-client protocol (osmand) |
-| - | yard-master (nginx, no host port; reached only through 4180) |
-| 8091 | yard-master `pnpm dev` (Vite dev server, HMR, not routed through oauth2-proxy) |
+| - | rt-manager (nginx, no host port; reached only through 4180) |
+| 8091 | rt-manager `pnpm dev` (Vite dev server, HMR, not routed through oauth2-proxy) |
 
 ## Dev Credentials
 
@@ -55,14 +55,14 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 
 One oauth2-proxy fronts two apps, which is how prod is arranged on
 `manage.rt.gtfs.zone`: nginx serves the SPA at `/`, and `/api/*` on the same
-hostname goes to cafe-car. Same origin on purpose, so there is no CORS, no
+hostname goes to rt-api. Same origin on purpose, so there is no CORS, no
 preflight on writes, and the `X-Auth-Request-*` headers arrive untouched.
 `OAUTH2_PROXY_UPSTREAMS` is the local stand-in for Traefik's path rules:
 
 | Path | Goes to |
 |---|---|
-| `/` and everything unmatched | `yard-master` (nginx, the SPA) |
-| `/api/*` | `admin` (cafe-car's JSON API) |
+| `/` and everything unmatched | `rt-manager` (nginx, the SPA) |
+| `/api/*` | `admin` (rt-api's JSON API) |
 | `/account`, `/account/*` | `admin` (identity linking, still server-rendered) |
 | `/feed/*`, `/tracker/*`, `/tracker-rule/*`, `/service-alert/*`, `/informed-entity/*`, `/statics/*` | `admin` (the old SQLAdmin pages) |
 
@@ -73,16 +73,16 @@ reaches SQLAdmin for a side-by-side comparison.
 **Object storage (Garage).** `garage` and `garage-init` stand in for the same
 `dxflrs/garage` binary prod runs in k3s: `S3_ENDPOINT=http://garage:3900`
 against the `gtfs-feeds` bucket, holding uploaded GTFS zips for `admin` to
-write/serve and for `schedule-foamer` to read. `garage-init` applies the
+write/serve and for `static-importer` to read. `garage-init` applies the
 layout and imports the access key once, on first boot; `garage`'s own health
 check only means "reachable," not "usable," which is why `garage-init` exists
 as a separate step.
 
 **The SPA is not built by this stack.** Its `dist/` is bind-mounted, so build it
-in the yard-master checkout at least once before `:4180` will show anything:
+in the rt-manager checkout at least once before `:4180` will show anything:
 
 ```bash
-cd ../yard-master
+cd ../gtfs-zone-rt-manager
 VITE_RT_BASE=http://localhost:8000 pnpm build
 ```
 
@@ -102,7 +102,7 @@ resolves to this stack's `api` on :8000 automatically in dev mode, no env var
 needed:
 
 ```bash
-cd ../yard-master
+cd ../gtfs-zone-rt-manager
 pnpm dev
 ```
 
@@ -132,7 +132,7 @@ only for a realm that does not define its own, so a list here replaces them
 rather than adding to it. Every login then dies at the auth endpoint with
 `invalid_scope`, and the account console answers "Sorry, an unexpected error has
 occurred". Extra claims go on a client's `protocolMappers` instead, which is
-where the `groups` claim oauth2-proxy passes to cafe-car comes from.
+where the `groups` claim oauth2-proxy passes to rt-api comes from.
 
 ### Imported users need a default role
 
@@ -178,15 +178,15 @@ entries in `dev/keycloak/gtfs-realm.json` with `"providerId": "github"` /
 > `docker compose down keycloak && docker compose exec db dropdb -U postgres keycloak && docker compose exec db createdb -U postgres -O keycloak keycloak && docker compose up -d keycloak`
 >
 > That re-import mints **new user UUIDs**, and the UUID is the `sub` claim that
-> cafe-car stores as `identity.provider_subject`. Every existing person then
+> rt-api stores as `identity.provider_subject`. Every existing person then
 > looks like a brand-new account with none of their feeds. Prefer patching the
 > live realm with `kcadm.sh` (see below) over re-importing, unless you are also
-> wiping the cafe-car database (see "Resetting local state" below).
+> wiping the rt-api database (see "Resetting local state" below).
 
 ### Resetting local state
 
 If admin access looks broken (a feed owned by an account you can't log back
-in as, e.g. after an OIDC provider change), or Keycloak/cafe-car state has
+in as, e.g. after an OIDC provider change), or Keycloak/rt-api state has
 just drifted from `dev/*` config,
 don't patch it in place; this stack is local-only, so it's cheaper to start
 over:
@@ -195,9 +195,9 @@ over:
 ./scripts/reset.sh
 ```
 
-This wipes Postgres (both cafe-car's app DB and the `keycloak` DB living in
+This wipes Postgres (both rt-api's app DB and the `keycloak` DB living in
 the same instance) and Redis, brings the stack back up, re-imports the
-Keycloak realm fresh, bootstraps the `alice@local` cafe-car account and
+Keycloak realm fresh, bootstraps the `alice@local` rt-api account and
 Traccar's first admin account, and reprovisions the three default feeds
 (`amtrak`, `columbia-county`, `west`; see `scripts/provision_default_feeds.sh`,
 which you can also run on its own to reprovision without a full reset).
@@ -217,7 +217,7 @@ docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update \
 
 Both brokers are `"trustEmail": true`. Real GitHub and Google only release
 addresses they have themselves verified, so Keycloak may mark the imported user
-`emailVerified`. **This is load-bearing, not cosmetic**: cafe-car matches a
+`emailVerified`. **This is load-bearing, not cosmetic**: rt-api matches a
 person to a pending feed invite (and to a link/merge candidate) only on a
 *verified* address. With `trustEmail: false` and the realm's `verifyEmail: false`,
 first-broker-login creates the user unverified, and a feed shared with that
@@ -231,17 +231,17 @@ Users created before this was fixed keep `emailVerified = false`; flip one with
 
 The `oauth2-proxy` client also carries an `identity_provider` protocol mapper (a
 user-session-note mapper) so tokens say which broker a session came through.
-cafe-car stores it as `identity.broker_alias` and shows it on `/account`; a
+rt-api stores it as `identity.broker_alias` and shows it on `/account`; a
 direct realm login has no such note and shows as "Direct".
 
 **PostgreSQL**: superuser `postgres` / `mysecretpassword`. Each service has its
-own role and database, matching prod's CNPG layout: `rt_api` / `rt_api` (cafe-car
+own role and database, matching prod's CNPG layout: `rt_api` / `rt_api` (rt-api
 and Celery), `keycloak` / `keycloak`, `traccar` / `traccar`. See
 `dev/postgres/init-roles.sql`, which only runs on a fresh `db` volume.
 
 **Realtime ingest**: there is no MQTT broker anymore. Driver positions flow
-through **Traccar** → `vehicle-poser` shim → Redis (see below). Amtrak positions
-and trip-updates, and the `simulate_trip.py` sim, POST directly to cafe-car's
+through **Traccar** → `rt-traccar-receiver` shim → Redis (see below). Amtrak positions
+and trip-updates, and the `simulate_trip.py` sim, POST directly to rt-api's
 `/ingest/*` API (shared bearer token `dev-ingest-token`).
 
 **Traccar** (http://localhost:8082) is **admin-only**. "Login with OpenID" goes
@@ -253,7 +253,7 @@ without any per-user device sharing.
 Locally that means **alice can log in and bob cannot** -- `scripts/reset.sh`
 puts alice in the group and deliberately leaves bob out, which is the whole test
 matrix for the gate. `admin@local` / `admin` remains as a local password
-break-glass account, and is what cafe-car uses for the REST API.
+break-glass account, and is what rt-api uses for the REST API.
 
 `scripts/reset.sh` turns the self-registration form off, matching prod;
 `openid.allowRegistration` is what still lets a group member provision
@@ -265,32 +265,32 @@ every feed, tracker, rule and alert rather than only their own, and they get the
 owner-only controls (share, remove, revoke, transfer) on feeds they do not own.
 A banner on the sharing panel says when that is why the controls are there.
 
-cafe-car reads the group from the `groups` claim in the access token
+rt-api reads the group from the `groups` claim in the access token
 oauth2-proxy forwards; the group name is the `ADMIN_GROUP` setting, defaulting
 to `gtfs-admins`. `scripts/reset.sh` puts alice in the group, so the bootstrapped
 local account is an admin in both apps.
 
 ## Vehicle locations (Traccar)
 
-Vehicle positions are ingested through **Traccar** → `vehicle-poser` HTTP shim →
-Redis (`vehicle:{tracker_id}:{deviceId}`, 60s TTL) → cafe-car. This replaced the
+Vehicle positions are ingested through **Traccar** → `rt-traccar-receiver` HTTP shim →
+Redis (`vehicle:{tracker_id}:{deviceId}`, 60s TTL) → rt-api. This replaced the
 retired OwnTracks → MQTT path. Drivers are provisioned with a QR / config URL
-generated per Driver in the cafe-car admin app. See **[docs/traccar.md](docs/traccar.md)**
+generated per Driver in the rt-api admin app. See **[docs/traccar.md](docs/traccar.md)**
 for the architecture, auth/data model, gotchas, and retention.
 
 Traccar persists every fix to the `traccar` Postgres DB and has no built-in
 retention: prune with `scripts/traccar_retention.sql` (see docs).
 
-## Amtrak & simulated trips (cafe-car ingest API)
+## Amtrak & simulated trips (rt-api ingest API)
 
-Producers that already know their own `trip_id`, `hell-gate-bridge` (Amtrak)
-and `cafe-car/scripts/simulate_trip.py`, POST straight to cafe-car's
+Producers that already know their own `trip_id`, `rt-pollers` (Amtrak)
+and `rt-api/scripts/simulate_trip.py`, POST straight to rt-api's
 `/ingest/position` and `/ingest/trip-update` (bearer token `INGEST_API_TOKEN`).
 The trip-update endpoint carries Amtrak's **own** per-stop predicted arrival/
-departure times, which cafe-car serves as multiple `stop_time_update`s. This
+departure times, which rt-api serves as multiple `stop_time_update`s. This
 replaced the old NanoMQ broker (retired in Phase 7).
 
-`trip-updogger` still runs, but only as the fallback for producers that supply
+`rt-delay-estimator` still runs, but only as the fallback for producers that supply
 no predictions of their own, chiefly the Traccar path, whose positions are bare
 lat/lon. It sweeps `vehicle:*` in Redis, projects each fix onto the trip's
 scheduled stops, and writes a schedule-derived `trip_update:*`. A source stamp

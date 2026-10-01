@@ -1,36 +1,36 @@
 # Traccar vehicle-location pipeline
 
 Driver vehicle positions are ingested through **Traccar**, replacing the retired
-OwnTracks → MQTT path. Redis is the stable seam, so `cafe-car` and
-`schedule-foamer` are unchanged.
+OwnTracks → MQTT path. Redis is the stable seam, so `rt-api` and
+`static-importer` are unchanged.
 
 > Amtrak positions/trip-updates and the `simulate_trip.py` sim do **not** go
-> through Traccar; they POST directly to cafe-car's `/ingest/*` API. NanoMQ was
+> through Traccar; they POST directly to rt-api's `/ingest/*` API. NanoMQ was
 > retired in Phase 7.
 
 ```
 Traccar Client app (phone)
     └─> Traccar server        (:5055 osmand ingest, :8082 web/REST)
-            └─> forward.type=json  POST http://vehicle-poser:8080/forward
-                    └─> vehicle-poser  (resolves trip_id via TrackerRules)
+            └─> forward.type=json  POST http://rt-traccar-receiver:8080/forward
+                    └─> rt-traccar-receiver  (resolves trip_id via TrackerRules)
                             └─> Redis  vehicle:{tracker_id}:{deviceId}  (60s TTL)
-                                    ├─> cafe-car      (serves GTFS-RT feeds)
-                                    └─> trip-updogger (schedule-derived
+                                    ├─> rt-api      (serves GTFS-RT feeds)
+                                    └─> rt-delay-estimator (schedule-derived
                                             trip_update:{tracker_id}:{trip_id}, 300s TTL)
 ```
 
-A Traccar fix is bare lat/lon: vehicle-poser sets no `current_stop_sequence`,
+A Traccar fix is bare lat/lon: rt-traccar-receiver sets no `current_stop_sequence`,
 `stop_id` or `current_status`, so the vehicle positions feed omits them (GTFS-RT
-makes all three optional). `trip-updogger` is what makes such a vehicle locatable
+makes all three optional). `rt-delay-estimator` is what makes such a vehicle locatable
 anyway: it projects each fix onto the trip's scheduled stops and publishes a
 timed prediction for every stop ahead, from which a consumer can infer the
 current stop. Predictions carrying only a delay are not enough for that.
 
 - A driver is provisioned by scanning a QR / config URL generated per Driver in
-  the cafe-car admin app. cafe-car auto-creates the matching Traccar device
+  the rt-api admin app. rt-api auto-creates the matching Traccar device
   (`uniqueId = username`) via REST when the Driver is created.
 - The shim writes the **exact** record shape the OwnTracks bridge used, keyed
-  `vehicle:{tracker_id}:{deviceId}`; see `vehicle-poser`'s README for the field
+  `vehicle:{tracker_id}:{deviceId}`; see `rt-traccar-receiver`'s README for the field
   mapping (knots→m/s, ISO-8601→epoch, etc.).
 - Config lives in `dev/traccar/traccar.xml` (Postgres storage, Keycloak OIDC,
   `forward.*` to the shim). The `traccar` role and database are created by
@@ -45,7 +45,7 @@ for a non-admin to hold a Traccar account.
 | Role | Who | Auth | Traccar object |
 |---|---|---|---|
 | **Admin** | us (operators) | Keycloak OIDC, must be in `gtfs-admins` | administrator user, auto-provisioned on first login; sees every device |
-| **Break-glass** | us, when SSO is down | internal password (`admin@local` / `admin`) | administrator user; owns the REST-created fleet devices, and is what cafe-car authenticates as |
+| **Break-glass** | us, when SSO is down | internal password (`admin@local` / `admin`) | administrator user; owns the REST-created fleet devices, and is what rt-api authenticates as |
 | **Driver** | the vehicle | none: device-only, QR-provisioned | Device (`uniqueId = tracker id`), no user account |
 
 The gate is two config keys, both reading the `groups` claim that Keycloak's
@@ -66,7 +66,7 @@ flag off after bootstrapping the break-glass admin.
 
 `openid.force` is deliberately **not** set: it would hide the internal login
 form, and that form is the break-glass path when Keycloak is down, as well as
-how cafe-car authenticates to the REST API.
+how rt-api authenticates to the REST API.
 
 ## Known gaps (deferred, not blockers)
 

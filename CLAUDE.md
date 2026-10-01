@@ -4,19 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Purpose
 
-`music-student` is the local development orchestration repo for the GTFS-RT project. It consolidates all services into a single `docker compose up --build` without requiring host.docker.internal networking hacks.
+`dev-stack` is the local development orchestration repo for the GTFS-RT project. It consolidates all services into a single `docker compose up --build` without requiring host.docker.internal networking hacks.
 
 The project consists of these application repos:
-- `railroad-club`: shared SQLModel models + Alembic migrations
-- `cafe-car`: FastAPI public API + admin app (also hosts the `/ingest/*` seam)
-- `schedule-foamer`: Celery worker + beat scheduler
-- `vehicle-poser`: Traccar HTTP-forward→Redis vehicle position bridge
-- `hell-gate-bridge`: Amtrak live tracker→cafe-car ingest (positions + trip-updates)
-- `trip-updogger`: Redis→Redis worker: schedule-derived Trip Updates for positions
+- `gtfs-zone-db-models`: shared SQLModel models + Alembic migrations
+- `rt-api`: FastAPI public API + admin app (also hosts the `/ingest/*` seam)
+- `static-importer`: Celery worker + beat scheduler
+- `rt-traccar-receiver`: Traccar HTTP-forward→Redis vehicle position bridge
+- `rt-pollers`: Amtrak live tracker→rt-api ingest (positions + trip-updates)
+- `rt-delay-estimator`: Redis→Redis worker: schedule-derived Trip Updates for positions
   that arrive without predictions of their own (chiefly the Traccar path)
 
 The NanoMQ broker was retired in Phase 7; trip-updates now come straight from
-producers over HTTP, and `trip-updogger` (once an MQTT bridge) was rebuilt as a
+producers over HTTP, and `rt-delay-estimator` (once an MQTT bridge) was rebuilt as a
 Redis→Redis fallback that never overwrites a richer producer's record.
 
 ## Running Locally
@@ -32,15 +32,15 @@ docker compose up --build
 
 **Build context paths**: where to find local repo checkouts:
 ```
-CAFE_CAR_DIR=../cafe-car
-SCHEDULE_FOAMER_DIR=../schedule-foamer
-TRIP_UPDOGGER_DIR=../trip-updogger
-VEHICLE_POSER_DIR=../vehicle-poser
+RT_API_DIR=../gtfs-zone-rt-api
+STATIC_IMPORTER_DIR=../gtfs-zone-static-importer
+RT_DELAY_ESTIMATOR_DIR=../gtfs-zone-rt-delay-estimator
+RT_TRACCAR_RECEIVER_DIR=../gtfs-zone-rt-traccar-receiver
 ```
 
 **Image overrides**: optional, to pull from a registry instead of building:
 ```
-CAFE_CAR_IMAGE=git.kcfam.us/gtfs.zone/cafe-car:latest
+RT_API_IMAGE=ghcr.io/gtfs-zone/gtfs-zone-rt-api:latest
 ```
 
 ## Remote Image Workflow
@@ -65,11 +65,11 @@ Leave the variable unset to build from the local `_DIR` path (default behavior).
 | flower | 5555 | Celery monitoring web UI |
 | keycloak | 8090 | OIDC provider (dev users + `fake-github`/`fake-google` broker realms). Needs a `keycloak` → 127.0.0.1 `/etc/hosts` entry |
 | mailpit | 8025 | Catches dev mail (Keycloak account-link verification) |
-| oauth2-proxy | 4180 | The single authenticated edge. Path-routes between `yard-master` and `admin`, standing in for Traefik |
-| yard-master | 8080 (internal) | nginx serving the yard-master SPA from a bind-mounted `dist/`. Requires `pnpm build` in that checkout first. For hot-reload, run `pnpm dev` there instead (http://localhost:8091, bypasses oauth2-proxy, HMR) |
-| vehicle-poser | 8080 (internal) | Traccar `json` HTTP-forward receiver→Redis vehicle position bridge |
-| trip-updogger | - | Redis→Redis worker: schedule-derived trip updates for positions with no predictions |
-| hell-gate-bridge | - | Amtrak live tracker→cafe-car `/ingest/*` (positions + trip-updates) |
+| oauth2-proxy | 4180 | The single authenticated edge. Path-routes between `rt-manager` and `admin`, standing in for Traefik |
+| rt-manager | 8080 (internal) | nginx serving the rt-manager SPA from a bind-mounted `dist/`. Requires `pnpm build` in that checkout first. For hot-reload, run `pnpm dev` there instead (http://localhost:8091, bypasses oauth2-proxy, HMR) |
+| rt-traccar-receiver | 8080 (internal) | Traccar `json` HTTP-forward receiver→Redis vehicle position bridge |
+| rt-delay-estimator | - | Redis→Redis worker: schedule-derived trip updates for positions with no predictions |
+| rt-pollers | - | Amtrak live tracker→rt-api `/ingest/*` (positions + trip-updates) |
 | traccar | 8082, 5055 | Traccar GPS tracking server, live vehicle-location source (8082 = web/REST, 5055 = phone client protocol). Admin-only: OIDC login is gated on the `gtfs-admins` Keycloak group. See `docs/traccar.md` |
 
 ## Postgres Roles
@@ -77,7 +77,7 @@ Leave the variable unset to build from the local `_DIR` path (default behavior).
 One role and database per service, created by `dev/postgres/init-roles.sql` on
 first boot of the `db` volume, mirroring the CNPG topology in prod:
 
-- `rt_api` / `rt_api`: cafe-car (api, admin, migrate) and the Celery services
+- `rt_api` / `rt_api`: rt-api (api, admin, migrate) and the Celery services
 - `keycloak` / `keycloak`: Keycloak
 - `traccar` / `traccar`: Traccar
 
@@ -89,8 +89,8 @@ this layout needs `docker compose down -v` (`scripts/reset.sh`).
 
 - DB 0: oauth2-proxy session storage in prod. The dev oauth2-proxy has no
   redis session store configured, so locally this DB stays empty.
-- DB 1: api + vehicle-poser + trip-updogger (vehicle position + trip-update data)
-- DB 3: Celery broker (schedule-foamer tasks)
+- DB 1: api + rt-traccar-receiver + rt-delay-estimator (vehicle position + trip-update data)
+- DB 3: Celery broker (static-importer tasks)
 - DB 4: Celery result backend
 
 ## Plan Workflow

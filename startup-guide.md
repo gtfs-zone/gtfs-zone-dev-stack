@@ -10,11 +10,11 @@ Brings the stack up from a clean slate and provisions three feeds:
 
 | Feed | `feed_name` | Position source | Trip resolution | Human step |
 |---|---|---|---|---|
-| Amtrak | `amtrak` | `hell-gate-bridge` (`SOURCE=amtrak`) polls Amtrak | upstream (explicit `trip_id`) | none |
-| Columbia County | `columbia-county` | `hell-gate-bridge-buswhere` (`SOURCE=buswhere`) polls buswhere.com | upstream (explicit `trip_id`) | none |
+| Amtrak | `amtrak` | `rt-pollers` (`SOURCE=amtrak`) polls Amtrak | upstream (explicit `trip_id`) | none |
+| Columbia County | `columbia-county` | `rt-pollers-buswhere` (`SOURCE=buswhere`) polls buswhere.com | upstream (explicit `trip_id`) | none |
 | West bus | `west` | a real Traccar phone device | server-side, from `TrackerRule`s | **driver scans a QR** |
 
-The two pollers authenticate to cafe-car's `/ingest/*` with the shared
+The two pollers authenticate to rt-api's `/ingest/*` with the shared
 `INGEST_API_TOKEN` and publish under a **fixed** `INGEST_TRACKER_ID` that must
 equal a `Tracker.id`: these are wired in `docker-compose.yml`
 (`amtrak-live`, `columbia-county`) and created by the `seed` service. West's
@@ -23,31 +23,31 @@ tracker keeps a generated surrogate id; the secret pet-name its QR encodes is
 
 Trip resolution keys:
 - Pollers POST an explicit `trip_id`, so they need **no** `TrackerRule`s.
-- West goes Traccar → `vehicle-poser` → `resolve_tracker_trip(tracker_id)`, which
+- West goes Traccar → `rt-traccar-receiver` → `resolve_tracker_trip(tracker_id)`, which
   needs (a) `TrackerRule`s mapping a schedule window → `trip_id`, and (b) the
   `west` GTFS static loaded so the feed timezone is known. Static loading is
-  automatic (schedule-foamer's beat enqueues any feed lacking a load within ~1 min).
+  automatic (static-importer's beat enqueues any feed lacking a load within ~1 min).
 
 ---
 
 ## 0. Prerequisites
 
 ```bash
-cd ~/Documents/music-student
+cd ~/Documents/dev-stack
 [ -f .env ] || cp .env.example .env          # build-context dirs + DB/Redis URLs
 ```
 
 The provisioning script runs from the **host** against published ports, using the
-cafe-car project venv (it already has `railroad_club` on the tracker branch):
+rt-api project venv (it already has `gtfs_zone_db_models` on the tracker branch):
 
 ```bash
-cd ~/Documents/cafe-car && uv sync            # once, if the venv is stale
+cd ~/Documents/rt-api && uv sync            # once, if the venv is stale
 ```
 
 ## 1. Full reset + start
 
 ```bash
-cd ~/Documents/music-student
+cd ~/Documents/dev-stack
 docker compose down -v          # stop everything and DELETE all volumes
 docker compose up --build -d    # rebuild images and start detached
 ```
@@ -98,18 +98,18 @@ Traccar admin**.
 ## 4. Provision the feeds
 
 **Amtrak and Columbia County need nothing here.** The `seed` service creates
-them during `docker compose up`, along with alice@local's cafe-car account. It
+them during `docker compose up`, along with alice@local's rt-api account. It
 is what pins their `Tracker.id` to the `INGEST_TRACKER_ID` literals the two
 pollers are configured with, which the CLI below deliberately cannot do:
 `provision_source.py` always generates a surrogate id. Check them with
 `docker compose logs seed`.
 
-That leaves west. Run from the cafe-car repo. The `TRACCAR_*` overrides point
+That leaves west. Run from the rt-api repo. The `TRACCAR_*` overrides point
 the script at the host-published Traccar (the in-container default
 `http://traccar:8082` won't resolve from the host):
 
 ```bash
-cd ~/Documents/cafe-car
+cd ~/Documents/rt-api
 export TRACCAR_URL=http://localhost:8082 TRACCAR_EMAIL=admin@local TRACCAR_PASSWORD=admin
 ```
 
@@ -155,7 +155,7 @@ Pass `--rule` more than once for multiple windows; re-running the command
 2. Its detail page renders the provisioning QR / config URL (Traccar Client deep
    link encoding the secret `uniqueId` + server).
 3. The driver installs **Traccar Client** and scans the QR. Positions flow:
-   phone → Traccar `:5055` → `forward.url` → `vehicle-poser:8080/forward` →
+   phone → Traccar `:5055` → `forward.url` → `rt-traccar-receiver:8080/forward` →
    `resolve_tracker_trip` → Redis `vehicle:<id>:*` → the `west` feed.
 
 > The QR base must be an address the **phone** can reach. The dev default
@@ -177,8 +177,8 @@ docker compose exec -T db psql -U postgres -tAc \
   "select id, nickname, feed_id from tracker order by nickname;"
 
 # Pollers are running clean (look for POSTs / resolved trips, no auth errors)
-docker compose logs --tail=30 hell-gate-bridge
-docker compose logs --tail=30 hell-gate-bridge-buswhere
+docker compose logs --tail=30 rt-pollers
+docker compose logs --tail=30 rt-pollers-buswhere
 
 # Served GTFS-RT: HTTP status (expect 200)
 curl -s -o /dev/null -w "amtrak vp: %{http_code}\n"          http://localhost:8000/amtrak/vehicle_positions.pb
@@ -204,11 +204,11 @@ Live vehicles only appear when the upstream actually has moving vehicles:
   trip is resolved server-side from the rules (replace `<west-id>` with the west
   `Tracker.id` from the query above):
   ```bash
-  cd ~/Documents/cafe-car
+  cd ~/Documents/rt-api
   uv run scripts/simulate_trip.py --mode device --tracker <west-id> \
     --trip WCCWB --speed 30 --real-time
   ```
-  `docker compose logs -f vehicle-poser` should show
+  `docker compose logs -f rt-traccar-receiver` should show
   `Stored vehicle:<west-id>:... trip_id=WCCWB` (proving rule resolution), and
   re-decoding `west/vehicle_positions.pb` shows one entity (`trip WCCWB`) for ~60 s
   (the position TTL). The west Traccar device must be provisioned (step 4) or

@@ -75,13 +75,13 @@
       ]
     },
     {
-      "clientId": "cafe-car",
-      "name": "cafe-car (admin API reader)",
+      "clientId": "rt-api",
+      "name": "rt-api (admin API reader)",
       "description": "Service account the admin app uses to read which upstream providers are linked to a realm account. Read-only: view-users and nothing else.",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "secret": "dev-cafe-car-secret",
+      "secret": "dev-rt-api-secret",
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
@@ -191,9 +191,9 @@
   ],
   "users": [
     {
-      "username": "service-account-cafe-car",
+      "username": "service-account-rt-api",
       "enabled": true,
-      "serviceAccountClientId": "cafe-car",
+      "serviceAccountClientId": "rt-api",
       "clientRoles": {
         "realm-management": [
           "view-users"

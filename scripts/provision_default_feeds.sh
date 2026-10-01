@@ -6,10 +6,10 @@
 #
 # amtrak and columbia-county are no longer here. They are created by the `seed`
 # service on `docker compose up`, which is also what pins their Tracker.id to
-# the INGEST_TRACKER_ID literals the hell-gate-bridge pollers are configured
+# the INGEST_TRACKER_ID literals the rt-pollers pollers are configured
 # with.
 #
-# Runs from a host checkout of cafe-car (the running api/admin containers
+# Runs from a host checkout of rt-api (the running api/admin containers
 # don't include scripts/ or uv), against the stack's published ports. Owner
 # defaults to alice@local, whose User row the `seed` service creates.
 #
@@ -19,11 +19,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 [ -f .env ] && . .env
-CAFE_CAR_DIR=${CAFE_CAR_DIR:-../cafe-car}
+RT_API_DIR=${RT_API_DIR:-../gtfs-zone-rt-api}
 
 # Everything points at the stack's published ports: this runs on the host, so
 # the in-container hostnames (db, traccar) do not resolve. Settings has no
-# defaults for these three and cafe-car has no .env of its own.
+# defaults for these three and rt-api has no .env of its own.
 export DATABASE_URL=postgresql+asyncpg://rt_api:rt_api@localhost:5432/rt_api
 export REDIS_URL=redis://localhost:6379/1
 export SESSION_SECRET_KEY=dev-secret-key
@@ -31,7 +31,7 @@ export TRACCAR_URL=http://localhost:8082
 export TRACCAR_EMAIL=admin@local
 export TRACCAR_PASSWORD=admin
 
-cd "$CAFE_CAR_DIR"
+cd "$RT_API_DIR"
 
 echo "==> west"
 uv run python scripts/provision_source.py \

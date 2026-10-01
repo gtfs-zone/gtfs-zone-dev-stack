@@ -5,14 +5,14 @@
 # owners after an OIDC provider change, drifted Keycloak realm state, etc.)
 # isn't worth it for a local-only stack.
 #
-# Wipes: the `db` volume (cafe-car's app DB *and* the `keycloak` DB living in
+# Wipes: the `db` volume (rt-api's app DB *and* the `keycloak` DB living in
 # the same Postgres instance), the `redis` volume, and Garage's `garage_meta`
 # and `garage_data` volumes. Everything in them is gone: feeds, trackers,
 # positions, Keycloak users/sessions, and every uploaded GTFS zip.
 #
 # Recreates: a fresh Keycloak realm import (dev/keycloak/*.json), Traccar's
 # break-glass admin account, and the west feed via provision_default_feeds.sh.
-# alice@local's cafe-car account and the amtrak / columbia-county feeds come
+# alice@local's rt-api account and the amtrak / columbia-county feeds come
 # up with the stack now, from the `seed` service in docker-compose.yml. So does
 # Garage's layout, bucket and access key, from `garage-init`: an empty Garage
 # rejects every write with a 500 that never mentions layouts, so that is a

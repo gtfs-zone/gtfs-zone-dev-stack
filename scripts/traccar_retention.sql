@@ -1,7 +1,7 @@
 -- Traccar position-history retention.
 --
 -- Traccar has NO built-in retention config key (verified against 6.14.5): it
--- persists every fix to tc_positions forever. Since the Traccar → vehicle-poser
+-- persists every fix to tc_positions forever. Since the Traccar → rt-traccar-receiver
 -- migration (see docs/traccar.md) this is new durable data we didn't keep under
 -- OwnTracks, so it needs pruning.
 --

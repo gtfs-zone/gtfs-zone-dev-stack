@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Force a single amtrak.com alerts scrape+sync cycle right now, instead of
-# waiting for hell-gate-bridge's 30-minute ALERTS_POLL_INTERVAL loop.
+# waiting for rt-pollers's 30-minute ALERTS_POLL_INTERVAL loop.
 set -euo pipefail
 
-docker compose exec hell-gate-bridge python -c "
+docker compose exec rt-pollers python -c "
 import asyncio, httpx
-from hell_gate_bridge.config import Config
-from hell_gate_bridge.sources.amtrak import AmtrakSource
-from hell_gate_bridge.sources.amtrak.alerts import build_alerts, fetch_alert_html
-from hell_gate_bridge.publisher import publish_alerts
+from gtfs_zone_rt_pollers.config import Config
+from gtfs_zone_rt_pollers.sources.amtrak import AmtrakSource
+from gtfs_zone_rt_pollers.sources.amtrak.alerts import build_alerts, fetch_alert_html
+from gtfs_zone_rt_pollers.publisher import publish_alerts
 
 async def main():
     config = Config()

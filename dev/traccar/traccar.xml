@@ -37,7 +37,7 @@
          out. Locally: alice is in the group, bob is not.
 
          openid.force is deliberately NOT set, so the local password login stays
-         available and cafe-car's REST API session login keeps working. -->
+         available and rt-api's REST API session login keeps working. -->
     <entry key='openid.allowGroup'>gtfs-admins</entry>
     <entry key='openid.adminGroup'>gtfs-admins</entry>
 
@@ -47,12 +47,12 @@
          provision themselves on first login. -->
     <entry key='openid.allowRegistration'>true</entry>
 
-    <!-- Forward each position to the vehicle-poser HTTP shim, which resolves the
-         tracker's trip via railroad-club and writes the vehicle:{tracker_id}:{deviceId}
-         Redis record that cafe-car reads. Do NOT switch this to forward.type=redis:
+    <!-- Forward each position to the rt-traccar-receiver HTTP shim, which resolves the
+         tracker's trip via gtfs-zone-db-models and writes the vehicle:{tracker_id}:{deviceId}
+         Redis record that rt-api reads. Do NOT switch this to forward.type=redis:
          that LPUSHes raw Position JSON (unbounded list, no TTL, no trip_id). -->
     <entry key='forward.enable'>true</entry>
     <entry key='forward.type'>json</entry>
-    <entry key='forward.url'>http://vehicle-poser:8080/forward</entry>
+    <entry key='forward.url'>http://rt-traccar-receiver:8080/forward</entry>
     <entry key='forward.retry.enable'>true</entry>
 </properties>

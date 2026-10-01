@@ -33,7 +33,7 @@ services:
       retries: 5
 
   # Object storage for uploaded GTFS zips. Prod runs the same binary in k3s;
-  # the S3 API is what both cafe-car and schedule-foamer talk to, so pointing
+  # the S3 API is what both rt-api and static-importer talk to, so pointing
   # S3_ENDPOINT at AWS, R2 or B2 instead would change nothing else.
   #
   # Published on 3900 so a host-side aws-cli or `pnpm dev` can reach the same
@@ -76,10 +76,10 @@ services:
         condition: service_healthy
 
   migrate:
-    image: ${CAFE_CAR_IMAGE:-cafe-car:local}
+    image: ${RT_API_IMAGE:-rt-api:local}
     build:
-      context: ${CAFE_CAR_DIR:-../cafe-car}
-    command: railroad-club-migrate
+      context: ${RT_API_DIR:-../gtfs-zone-rt-api}
+    command: gtfs-zone-db-models-migrate
     environment:
       DATABASE_URL: postgresql+asyncpg://rt_api:rt_api@db:5432/rt_api
       REDIS_URL: redis://redis:6379/1
@@ -89,17 +89,17 @@ services:
         condition: service_healthy
 
   # One-shot dev fixture: alice@local's account, plus the two feeds the
-  # hell-gate-bridge pollers publish into. Their Tracker.id must equal the
+  # rt-pollers pollers publish into. Their Tracker.id must equal the
   # INGEST_TRACKER_ID literals on those services below, which is why the seed
   # pins the id instead of taking the generated surrogate. Guarded by DEBUG:
   # the entry point ships in the production wheel and refuses to run without
   # it. The `west` feed stays in scripts/provision_default_feeds.sh, since it
   # needs schedule rules and a real Traccar device.
   seed:
-    image: ${CAFE_CAR_IMAGE:-cafe-car:local}
+    image: ${RT_API_IMAGE:-rt-api:local}
     build:
-      context: ${CAFE_CAR_DIR:-../cafe-car}
-    command: cafe-car-seed-dev
+      context: ${RT_API_DIR:-../gtfs-zone-rt-api}
+    command: rt-api-seed-dev
     environment:
       DATABASE_URL: postgresql+asyncpg://rt_api:rt_api@db:5432/rt_api
       # Required fields on Settings; the seed reads neither.
@@ -109,8 +109,8 @@ services:
       # Reads alice's subject, which the realm import mints fresh every time.
       KEYCLOAK_URL: http://keycloak:8090
       KEYCLOAK_REALM: gtfs
-      KEYCLOAK_CLIENT_ID: cafe-car
-      KEYCLOAK_CLIENT_SECRET: dev-cafe-car-secret
+      KEYCLOAK_CLIENT_ID: rt-api
+      KEYCLOAK_CLIENT_SECRET: dev-rt-api-secret
     depends_on:
       keycloak:
         condition: service_healthy
@@ -118,9 +118,9 @@ services:
         condition: service_completed_successfully
 
   api:
-    image: ${CAFE_CAR_IMAGE:-cafe-car:local}
+    image: ${RT_API_IMAGE:-rt-api:local}
     build:
-      context: ${CAFE_CAR_DIR:-../cafe-car}
+      context: ${RT_API_DIR:-../gtfs-zone-rt-api}
     restart: on-failure
     ports:
       - "8000:8000"
@@ -128,7 +128,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://rt_api:rt_api@db:5432/rt_api
       REDIS_URL: redis://redis:6379/1
       SESSION_SECRET_KEY: dev-secret-key
-      # test-track's vite dev server asks for 8080 but silently drifts to 8081+
+      # rt-viewer's vite dev server asks for 8080 but silently drifts to 8081+
       # when that port is taken, so allow the whole range it can land on.
       CORS_ALLOWED_ORIGINS: '["http://localhost:8080","http://localhost:8081","http://localhost:8082","http://localhost:8083","http://localhost:8084","http://localhost:8085","http://localhost:8086","http://localhost:8087","http://localhost:8088","http://localhost:8089"]'
       TRACCAR_URL: http://traccar:8082
@@ -159,11 +159,11 @@ services:
         condition: service_completed_successfully
 
   admin:
-    image: ${CAFE_CAR_IMAGE:-cafe-car:local}
+    image: ${RT_API_IMAGE:-rt-api:local}
     build:
-      context: ${CAFE_CAR_DIR:-../cafe-car}
+      context: ${RT_API_DIR:-../gtfs-zone-rt-api}
     restart: on-failure
-    command: fastapi run src/cafe_car/admin_main.py --port 8001
+    command: fastapi run src/gtfs_zone_rt_api/admin_main.py --port 8001
     ports:
       - "8001:8001"
     environment:
@@ -178,8 +178,8 @@ services:
       # on the issuer (the /etc/hosts entry the README documents).
       KEYCLOAK_URL: http://keycloak:8090
       KEYCLOAK_REALM: gtfs
-      KEYCLOAK_CLIENT_ID: cafe-car
-      KEYCLOAK_CLIENT_SECRET: dev-cafe-car-secret
+      KEYCLOAK_CLIENT_ID: rt-api
+      KEYCLOAK_CLIENT_SECRET: dev-rt-api-secret
       KEYCLOAK_ACCOUNT_URL: http://keycloak:8090/realms/gtfs/account
       TRACCAR_URL: http://traccar:8082
       TRACCAR_EMAIL: admin@local
@@ -203,16 +203,16 @@ services:
         condition: service_completed_successfully
 
   celery-worker:
-    image: ${SCHEDULE_FOAMER_IMAGE:-schedule-foamer:local}
+    image: ${STATIC_IMPORTER_IMAGE:-static-importer:local}
     build:
-      context: ${SCHEDULE_FOAMER_DIR:-../schedule-foamer}
-    command: celery -A schedule_foamer.celery_app worker -l info
+      context: ${STATIC_IMPORTER_DIR:-../gtfs-zone-static-importer}
+    command: celery -A gtfs_zone_static_importer.celery_app worker -l info
     restart: on-failure
     environment:
       DATABASE_URL: postgresql+psycopg2://rt_api:rt_api@db:5432/rt_api
       CELERY_BROKER_URL: redis://redis:6379/3
       CELERY_RESULT_BACKEND: redis://redis:6379/4
-      # Where load-status events are published; cafe-car subscribes on the same
+      # Where load-status events are published; rt-api subscribes on the same
       # db and forwards them to the SPA over SSE.
       REDIS_URL: redis://redis:6379/1
       FEED_REFRESH_INTERVAL_MINUTES: 10
@@ -236,10 +236,10 @@ services:
         condition: service_completed_successfully
 
   celery-beat:
-    image: ${SCHEDULE_FOAMER_IMAGE:-schedule-foamer:local}
+    image: ${STATIC_IMPORTER_IMAGE:-static-importer:local}
     build:
-      context: ${SCHEDULE_FOAMER_DIR:-../schedule-foamer}
-    command: celery -A schedule_foamer.celery_app beat -l info --schedule=/app/beat/celerybeat-schedule
+      context: ${STATIC_IMPORTER_DIR:-../gtfs-zone-static-importer}
+    command: celery -A gtfs_zone_static_importer.celery_app beat -l info --schedule=/app/beat/celerybeat-schedule
     restart: on-failure
     environment:
       CELERY_BROKER_URL: redis://redis:6379/3
@@ -307,9 +307,9 @@ services:
       db:
         condition: service_healthy
 
-  # The yard-master SPA. Built on the host (`pnpm build` in the yard-master
+  # The rt-manager SPA. Built on the host (`pnpm build` in the rt-manager
   # checkout) and bind-mounted, not built here: the image is artifact-only, the
-  # same as test-track's, so a builder stage would exist for this stack alone.
+  # same as rt-viewer's, so a builder stage would exist for this stack alone.
   # For a real edit loop, run `pnpm dev` on the host instead (vite's :8091,
   # HMR, forges the oauth2-proxy headers itself); rebuild `dist/` only to
   # check the same-origin nginx/oauth2-proxy path this service serves.
@@ -318,12 +318,12 @@ services:
   # the whole point of running it here rather than on vite's :8091. No
   # healthcheck either, matching `admin`: reset.sh runs `up --wait`, and a
   # healthcheck that never passes hangs it.
-  yard-master:
+  rt-manager:
     image: nginxinc/nginx-unprivileged:1.29-alpine
     restart: on-failure
     volumes:
-      - ${YARD_MASTER_DIR:-../yard-master}/dist:/usr/share/nginx/html:ro
-      - ${YARD_MASTER_DIR:-../yard-master}/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${RT_MANAGER_DIR:-../gtfs-zone-rt-manager}/dist:/usr/share/nginx/html:ro
+      - ${RT_MANAGER_DIR:-../gtfs-zone-rt-manager}/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.14.3
@@ -339,10 +339,10 @@ services:
       OAUTH2_PROXY_REDIRECT_URL: http://localhost:4180/oauth2/callback
       # The dev stand-in for Traefik's path rules on manage.rt.gtfs.zone. A
       # trailing slash is a prefix mount and the prefix is passed through
-      # unstripped, so /api/x reaches cafe-car as /api/x; a path without one is
+      # unstripped, so /api/x reaches rt-api as /api/x; a path without one is
       # an exact match, which is why /account is listed twice (the page is a
       # SQLAdmin BaseView, its link-confirm and link-dismiss POSTs sit beneath
-      # it). The bare yard-master entry is the catch-all and takes / from
+      # it). The bare rt-manager entry is the catch-all and takes / from
       # SQLAdmin, which is intended. The five model prefixes are SQLAdmin's
       # identities, kept so the old admin's pages stay browsable beside the SPA
       # for the parity review.
@@ -355,7 +355,7 @@ services:
       # One line on purpose: the value is split on the comma and the parts are
       # not trimmed, so a YAML fold would hand oauth2-proxy URLs with a leading
       # space and every one but the first would fail to parse.
-      OAUTH2_PROXY_UPSTREAMS: "http://admin:8001/api/,http://admin:8001/account,http://admin:8001/account/,http://admin:8001/statics/,http://admin:8001/feed/,http://admin:8001/tracker/,http://admin:8001/tracker-rule/,http://admin:8001/service-alert/,http://admin:8001/informed-entity/,http://yard-master:8080/"
+      OAUTH2_PROXY_UPSTREAMS: "http://admin:8001/api/,http://admin:8001/account,http://admin:8001/account/,http://admin:8001/statics/,http://admin:8001/feed/,http://admin:8001/tracker/,http://admin:8001/tracker-rule/,http://admin:8001/service-alert/,http://admin:8001/informed-entity/,http://rt-manager:8080/"
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
@@ -363,9 +363,9 @@ services:
       # Group membership rides in on a mapper on the oauth2-proxy client, not a
       # scope, so it is not requested here: a realm that defines its own scope
       # list loses Keycloak's built-in `profile` and `email`, and every login
-      # then fails with invalid_scope. The `groups` claim is how cafe-car
+      # then fails with invalid_scope. The `groups` claim is how rt-api
       # decides who is a gtfs-admins admin. No ALLOWED_GROUPS: the admin app
-      # stays open to every realm account, and cafe-car's own scoping decides
+      # stays open to every realm account, and rt-api's own scoping decides
       # what each of them sees.
       OAUTH2_PROXY_SCOPE: "openid email profile"
       OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
@@ -385,13 +385,13 @@ services:
         condition: service_healthy
       admin:
         condition: service_started
-      yard-master:
+      rt-manager:
         condition: service_started
 
-  vehicle-poser:
-    image: ${VEHICLE_POSER_IMAGE:-vehicle-poser:local}
+  rt-traccar-receiver:
+    image: ${RT_TRACCAR_RECEIVER_IMAGE:-rt-traccar-receiver:local}
     build:
-      context: ${VEHICLE_POSER_DIR:-../vehicle-poser}
+      context: ${RT_TRACCAR_RECEIVER_DIR:-../gtfs-zone-rt-traccar-receiver}
     restart: on-failure
     environment:
       HTTP_PORT: 8080
@@ -403,10 +403,10 @@ services:
       - redis
       - migrate
 
-  trip-updogger:
-    image: ${TRIP_UPDOGGER_IMAGE:-trip-updogger:local}
+  rt-delay-estimator:
+    image: ${RT_DELAY_ESTIMATOR_IMAGE:-rt-delay-estimator:local}
     build:
-      context: ${TRIP_UPDOGGER_DIR:-../trip-updogger}
+      context: ${RT_DELAY_ESTIMATOR_DIR:-../gtfs-zone-rt-delay-estimator}
     restart: on-failure
     environment:
       REDIS_URL: redis://redis:6379/1
@@ -440,22 +440,22 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_healthy
-      vehicle-poser:
+      rt-traccar-receiver:
         condition: service_started
 
-  hell-gate-bridge:
-    image: ${HELL_GATE_BRIDGE_IMAGE:-hell-gate-bridge:local}
+  rt-pollers:
+    image: ${RT_POLLERS_IMAGE:-rt-pollers:local}
     build:
-      context: ${HELL_GATE_BRIDGE_DIR:-../hell-gate-bridge}
+      context: ${RT_POLLERS_DIR:-../gtfs-zone-rt-pollers}
     restart: on-failure
     environment:
       SOURCE: amtrak
       POLL_INTERVAL: 15
       ROUTE_FILTER:
-      CAFE_CAR_INGEST_URL: http://api:8000
+      RT_API_INGEST_URL: http://api:8000
       INGEST_API_TOKEN: dev-ingest-token
       # Must equal the amtrak Tracker.id provisioned via scripts/provision_source.py
-      # (cafe-car keys live positions as vehicle:{tracker_id}[:{vehicle_id}]).
+      # (rt-api keys live positions as vehicle:{tracker_id}[:{vehicle_id}]).
       # INGEST_VEHICLE_ID is the old name, kept so an older image still reads it.
       INGEST_TRACKER_ID: amtrak-live
       INGEST_VEHICLE_ID: amtrak-live
@@ -467,10 +467,10 @@ services:
       seed:
         condition: service_completed_successfully
 
-  hell-gate-bridge-buswhere:
-    image: ${HELL_GATE_BRIDGE_IMAGE:-hell-gate-bridge:local}
+  rt-pollers-buswhere:
+    image: ${RT_POLLERS_IMAGE:-rt-pollers:local}
     build:
-      context: ${HELL_GATE_BRIDGE_DIR:-../hell-gate-bridge}
+      context: ${RT_POLLERS_DIR:-../gtfs-zone-rt-pollers}
     restart: on-failure
     environment:
       SOURCE: buswhere
@@ -480,9 +480,9 @@ services:
       GTFS_URL: https://raw.githubusercontent.com/columbia-county-ny-transit/gtfs-generator/refs/heads/main/columbia_county_gtfs.zip
       # Blank → poll all mapped Columbia County routes.
       BUSWHERE_ROUTES:
-      CAFE_CAR_INGEST_URL: http://api:8000
+      RT_API_INGEST_URL: http://api:8000
       INGEST_API_TOKEN: dev-ingest-token
-      # Must equal the columbia-county Tracker.id provisioned in cafe-car.
+      # Must equal the columbia-county Tracker.id provisioned in rt-api.
       # INGEST_VEHICLE_ID is the old name, kept so an older image still reads it.
       INGEST_TRACKER_ID: columbia-county
       INGEST_VEHICLE_ID: columbia-county

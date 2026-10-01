@@ -1,5 +1,5 @@
 -- Per-service roles and databases, mirroring the CNPG topology in prod
--- (deploy-gtfs-rt gtfs/postgres-cluster.yaml) rather than running everything as
+-- (gtfs-zone-infra gtfs/postgres-cluster.yaml) rather than running everything as
 -- the `postgres` superuser against one `postgres` database.
 --
 -- The point is that grant and ownership bugs show up locally. Under a single

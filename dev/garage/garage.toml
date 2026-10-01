@@ -1,5 +1,5 @@
 # Single-node Garage for the local stack. Prod is the same binary with a real
-# rpc_secret and more than one replica; see deploy-gtfs-rt.
+# rpc_secret and more than one replica; see gtfs-zone-infra.
 
 metadata_dir = "/var/lib/garage/meta"
 data_dir = "/var/lib/garage/data"
