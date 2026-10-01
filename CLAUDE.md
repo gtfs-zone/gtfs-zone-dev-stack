@@ -60,8 +60,8 @@ Leave the variable unset to build from the local `_DIR` path (default behavior).
 | migrate | - | Runs `alembic upgrade head`, exits |
 | api | 8000 | GTFS-RT public API |
 | admin | 8001 | SQLAdmin interface (direct, no auth) |
-| celery-worker | - | Schedule-foamer Celery worker |
-| celery-beat | - | Schedule-foamer Celery beat scheduler |
+| celery-worker | - | gtfs-zone-static-importer Celery worker |
+| celery-beat | - | gtfs-zone-static-importer Celery beat scheduler |
 | flower | 5555 | Celery monitoring web UI |
 | keycloak | 8090 | OIDC provider (dev users + `fake-github`/`fake-google` broker realms). Needs a `keycloak` → 127.0.0.1 `/etc/hosts` entry |
 | mailpit | 8025 | Catches dev mail (Keycloak account-link verification) |
