@@ -1,5 +1,7 @@
 # gtfs-zone-dev-stack
 
+[![CI](https://img.shields.io/github/actions/workflow/status/gtfs-zone/gtfs-zone-dev-stack/check.yml?branch=main&label=CI)](https://github.com/gtfs-zone/gtfs-zone-dev-stack/actions/workflows/check.yml?query=branch%3Amain) [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE.txt)
+
 Local development environment for the GTFS-RT project. Runs all services with a single command.
 
 ## Quickstart
