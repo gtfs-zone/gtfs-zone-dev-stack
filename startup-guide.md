@@ -6,18 +6,19 @@
 > actual phone). Kept as reference/troubleshooting detail for what the script
 > does and why.
 
-Brings the stack up from a clean slate and provisions three feeds:
+Brings the stack up from a clean slate and provisions four feeds:
 
 | Feed | `feed_name` | Position source | Trip resolution | Human step |
 |---|---|---|---|---|
 | Amtrak | `amtrak` | `rt-pollers` (`SOURCE=amtrak`) polls Amtrak | upstream (explicit `trip_id`) | none |
 | Columbia County | `columbia-county` | `rt-pollers-buswhere` (`SOURCE=buswhere`) polls buswhere.com | upstream (explicit `trip_id`) | none |
+| Hudson Link | `hudsonlink` | `rt-pollers-hudsonlink` (`SOURCE=hudsonlink`) polls CoachUSA's journey API | upstream (explicit `trip_id`) | none |
 | West bus | `west` | a real Traccar phone device | server-side, from `TrackerRule`s | **driver scans a QR** |
 
-The two pollers authenticate to rt-api's `/ingest/*` with the shared
+The pollers authenticate to rt-api's `/ingest/*` with the shared
 `INGEST_API_TOKEN` and publish under a **fixed** `INGEST_TRACKER_ID` that must
 equal a `Tracker.id`: these are wired in `docker-compose.yml`
-(`amtrak-live`, `columbia-county`) and created by the `seed` service. West's
+(`amtrak-live`, `columbia-county`, `hudsonlink`) and created by the `seed` service. West's
 tracker keeps a generated surrogate id; the secret pet-name its QR encodes is
 `device_key`, which is a separate column and never appears in a URL.
 
@@ -179,10 +180,12 @@ docker compose exec -T db psql -U postgres -tAc \
 # Pollers are running clean (look for POSTs / resolved trips, no auth errors)
 docker compose logs --tail=30 rt-pollers
 docker compose logs --tail=30 rt-pollers-buswhere
+docker compose logs --tail=30 rt-pollers-hudsonlink
 
 # Served GTFS-RT: HTTP status (expect 200)
 curl -s -o /dev/null -w "amtrak vp: %{http_code}\n"          http://localhost:8000/amtrak/vehicle_positions.pb
 curl -s -o /dev/null -w "columbia vp: %{http_code}\n"        http://localhost:8000/columbia-county/vehicle_positions.pb
+curl -s -o /dev/null -w "hudsonlink vp: %{http_code}\n"      http://localhost:8000/hudsonlink/vehicle_positions.pb
 curl -s -o /dev/null -w "west vp: %{http_code}\n"            http://localhost:8000/west/vehicle_positions.pb
 
 # Decode a feed's live entity count (uses the api container's protobuf bindings)

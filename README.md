@@ -244,8 +244,8 @@ over:
 This wipes Postgres (both rt-api's app DB and the `keycloak` DB living in
 the same instance) and Redis, brings the stack back up, re-imports the
 Keycloak realm fresh, bootstraps the `alice@local` rt-api account and
-Traccar's first admin account, and reprovisions the three default feeds
-(`amtrak`, `columbia-county`, `west`; see `scripts/provision_default_feeds.sh`,
+Traccar's first admin account, and reprovisions the default feeds
+(`amtrak`, `columbia-county`, `hudsonlink`, `west`; see `scripts/provision_default_feeds.sh`,
 which you can also run on its own to reprovision without a full reset).
 Anything created by hand (extra feeds, trackers, Keycloak users) is gone
 after this; re-create it, or extend `provision_default_feeds.sh`.

@@ -88,7 +88,7 @@ services:
       db:
         condition: service_healthy
 
-  # One-shot dev fixture: alice@local's account, plus the two feeds the
+  # One-shot dev fixture: alice@local's account, plus the feeds the
   # rt-pollers pollers publish into. Their Tracker.id must equal the
   # INGEST_TRACKER_ID literals on those services below, which is why the seed
   # pins the id instead of taking the generated surrogate. Guarded by DEBUG:
@@ -494,6 +494,25 @@ services:
       seed:
         condition: service_completed_successfully
 
+  rt-pollers-hudsonlink:
+    image: ${RT_POLLERS_IMAGE:-rt-pollers:local}
+    build:
+      context: ${RT_POLLERS_DIR:-../gtfs-zone-rt-pollers}
+    restart: on-failure
+    environment:
+      SOURCE: hudsonlink
+      RT_API_INGEST_URL: http://api:8000
+      INGEST_API_TOKEN: dev-ingest-token
+      # Must equal the hudsonlink Tracker.id provisioned in rt-api.
+      INGEST_TRACKER_ID: hudsonlink
+    volumes:
+      - rt_pollers_beat_hudsonlink:/app/beat
+    depends_on:
+      api:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+
 volumes:
   db_data:
   redis_data:
@@ -501,3 +520,4 @@ volumes:
   garage_data:
   hell_gate_beat:
   hell_gate_beat_buswhere:
+  rt_pollers_beat_hudsonlink:
