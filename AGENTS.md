@@ -9,7 +9,11 @@ deploys from here; production is gtfs-zone-infra.
 
 ```bash
 scripts/reset.sh   # wipe every volume, rebuild, reprovision the dev feeds
+mani run status    # every gtfs-zone repo, from mani.yaml (see README.md)
 ```
+
+`mani.yaml` lists every gtfs-zone repo as a sibling checkout, with its tags
+and the cross-repo tasks. A new repo goes in it.
 
 ## Architecture
 
