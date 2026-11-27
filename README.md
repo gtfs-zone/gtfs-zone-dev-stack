@@ -6,20 +6,16 @@ Local development environment for the GTFS-RT project. Runs all services with a 
 
 ## Quickstart
 
-1. Clone all repos as siblings:
+1. Clone this repo, then the realtime repos next to it (needs mani, see
+   [Working across repos](#working-across-repos)):
    ```bash
-   git clone https://github.com/gtfs-zone/gtfs-zone-rt-api.git
-   git clone https://github.com/gtfs-zone/gtfs-zone-static-importer.git
-   git clone https://github.com/gtfs-zone/gtfs-zone-rt-traccar-receiver.git
-   git clone https://github.com/gtfs-zone/gtfs-zone-rt-delay-estimator.git
-   git clone https://github.com/gtfs-zone/gtfs-zone-rt-pollers.git
-   git clone https://github.com/gtfs-zone/gtfs-zone-rt-manager.git
-   git clone https://github.com/gtfs-zone/gtfs-zone-dev-stack.git
+   git clone git@github.com:gtfs-zone/gtfs-zone-dev-stack.git
+   cd gtfs-zone-dev-stack
+   mani sync -t rt --sync-gitignore=false
    ```
 
 2. Copy the example env file:
    ```bash
-   cd dev-stack
    cp .env.example .env
    ```
 
@@ -27,6 +23,50 @@ Local development environment for the GTFS-RT project. Runs all services with a 
    ```bash
    docker compose up --build
    ```
+
+## Working across repos
+
+Two tools, both single binaries:
+
+- [mise](https://mise.jdx.dev) installs each repo's toolchain from its
+  `.mise.toml` (node and pnpm, python and uv). CI installs the same versions
+  through the org's reusable workflows.
+- [mani](https://manicli.com) runs a task over every gtfs-zone repo, from
+  [`mani.yaml`](mani.yaml) in this repo. Every repo is a sibling of this one.
+
+### Install
+
+```bash
+curl https://mise.run | sh                         # mise, into ~/.local/bin
+echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc   # or zsh / fish
+cd gtfs-zone-dev-stack && mise trust && mise install   # mani, pinned in .mise.toml
+```
+
+In each repo, once: `mise trust && mise install`. With `mise activate` in
+the shell, `node`, `pnpm`, `python` and `uv` then follow the repo you are
+in. To bump a tool, change `.mise.toml`; for pnpm, change `packageManager`
+in `package.json` in the same commit (CI fails when they differ).
+
+### Use
+
+Run from this repo. With no target, a task runs in every repo; `-t <tag>`
+or `--projects a,b` narrows it.
+
+```bash
+mani sync --sync-gitignore=false   # clone the repos that are missing
+mani run status                    # branch, ahead/behind, uncommitted files
+mani run branches                  # unmerged branches, merged ones not deleted
+mani run pull                      # fetch, fast-forward the current branch
+mani run check -t web              # pnpm check and/or scripts/check.sh
+mani run sync-agents               # rewrite the shared AGENTS.md block
+mani list projects -t python       # which repos a tag covers
+```
+
+Tags: `web` (pnpm apps and libraries), `python` (uv projects), `rt` (the
+realtime stack), `wifi` (wifi.gtfs.zone), `data` (pipelines and the sites
+they build). `check` stops at the first failing repo. `sync-agents` calls
+`scripts/sync-agents.sh` in the org repo (`gtfs-zone-org-root`, cloned by
+`mani sync`) and skips repos whose `AGENTS.md` has no shared block.
 
 ## Port Map
 

@@ -1,0 +1,190 @@
+# Every gtfs-zone repo, checked out as siblings of this one.
+#
+#   mani sync                    # clone the missing ones
+#   mani run status              # every repo
+#   mani run check -t python     # only repos tagged python
+#
+# Tags: web (pnpm apps and libraries), python (uv projects), rt (realtime
+# stack), wifi (wifi.gtfs.zone), data (pipelines and the sites they build).
+
+projects:
+  org:
+    path: ../gtfs-zone-org-root
+    url: git@github.com:gtfs-zone/.github.git
+  crimes:
+    path: ../gtfs-zone-crimes
+    url: git@github.com:gtfs-zone/gtfs-zone-crimes.git
+    tags: [python, web, data]
+  db-models:
+    path: ../gtfs-zone-db-models
+    url: git@github.com:gtfs-zone/gtfs-zone-db-models.git
+    tags: [python, rt]
+  dev-stack:
+    path: .
+    url: git@github.com:gtfs-zone/gtfs-zone-dev-stack.git
+    tags: [rt]
+  diff:
+    path: ../gtfs-zone-diff
+    url: git@github.com:gtfs-zone/gtfs-zone-diff.git
+    tags: [web]
+  editor:
+    path: ../gtfs-zone-editor
+    url: git@github.com:gtfs-zone/gtfs-zone-editor.git
+    tags: [web]
+  feed-catalog:
+    path: ../gtfs-zone-feed-catalog
+    url: git@github.com:gtfs-zone/gtfs-zone-feed-catalog.git
+    tags: [python, data]
+  feed-fetch:
+    path: ../gtfs-zone-feed-fetch
+    url: git@github.com:gtfs-zone/gtfs-zone-feed-fetch.git
+    tags: [python, data]
+  feed-list:
+    path: ../gtfs-zone-feed-list
+    url: git@github.com:gtfs-zone/gtfs-zone-feed-list.git
+    tags: [web, data]
+  homepage:
+    path: ../gtfs-zone-homepage
+    url: git@github.com:gtfs-zone/gtfs-zone-homepage.git
+    tags: [web]
+  infra:
+    path: ../gtfs-zone-infra
+    url: git@github.com:gtfs-zone/gtfs-zone-infra.git
+  rt-accuracy:
+    path: ../gtfs-zone-rt-accuracy
+    url: git@github.com:gtfs-zone/gtfs-zone-rt-accuracy.git
+    tags: [web, rt]
+  rt-api:
+    path: ../gtfs-zone-rt-api
+    url: git@github.com:gtfs-zone/gtfs-zone-rt-api.git
+    tags: [python, rt]
+  rt-archive:
+    path: ../gtfs-zone-rt-archive
+    url: git@github.com:gtfs-zone/gtfs-zone-rt-archive.git
+    tags: [python, rt]
+  rt-delay-estimator:
+    path: ../gtfs-zone-rt-delay-estimator
+    url: git@github.com:gtfs-zone/gtfs-zone-rt-delay-estimator.git
+    tags: [python, rt]
+  rt-manager:
+    path: ../gtfs-zone-rt-manager
+    url: git@github.com:gtfs-zone/gtfs-zone-rt-manager.git
+    tags: [web, rt]
+  rt-pollers:
+    path: ../gtfs-zone-rt-pollers
+    url: git@github.com:gtfs-zone/gtfs-zone-rt-pollers.git
+    tags: [python, rt]
+  rt-traccar-receiver:
+    path: ../gtfs-zone-rt-traccar-receiver
+    url: git@github.com:gtfs-zone/gtfs-zone-rt-traccar-receiver.git
+    tags: [python, rt]
+  rt-viewer:
+    path: ../gtfs-zone-rt-viewer
+    url: git@github.com:gtfs-zone/gtfs-zone-rt-viewer.git
+    tags: [web, rt]
+  static-importer:
+    path: ../gtfs-zone-static-importer
+    url: git@github.com:gtfs-zone/gtfs-zone-static-importer.git
+    tags: [python, rt]
+  timetable-sites:
+    path: ../gtfs-zone-timetable-sites
+    url: git@github.com:gtfs-zone/gtfs-zone-timetable-sites.git
+    tags: [python, web, data]
+  vocab:
+    path: ../gtfs-zone-vocab
+    url: git@github.com:gtfs-zone/gtfs-zone-vocab.git
+    tags: [python, web, data]
+  web-common:
+    path: ../gtfs-zone-web-common
+    url: git@github.com:gtfs-zone/gtfs-zone-web-common.git
+    tags: [web]
+  wifi-app:
+    path: ../gtfs-zone-wifi-app
+    url: git@github.com:gtfs-zone/gtfs-zone-wifi-app.git
+    tags: [wifi]
+  wifi-ingest:
+    path: ../gtfs-zone-wifi-ingest
+    url: git@github.com:gtfs-zone/gtfs-zone-wifi-ingest.git
+    tags: [python, wifi]
+  wifi-pipeline:
+    path: ../gtfs-zone-wifi-pipeline
+    url: git@github.com:gtfs-zone/gtfs-zone-wifi-pipeline.git
+    tags: [python, wifi]
+  wifi-viz:
+    path: ../gtfs-zone-wifi-viz
+    url: git@github.com:gtfs-zone/gtfs-zone-wifi-viz.git
+    tags: [web, wifi]
+
+specs:
+  # One block of output per repo, all repos at once.
+  parallel:
+    output: stream
+    parallel: true
+    ignore_errors: true
+  # One repo after another, stopping at the first failure.
+  serial:
+    output: stream
+    parallel: false
+    ignore_errors: false
+
+targets:
+  # Used when a run names no project, tag or path.
+  default:
+    all: true
+
+tasks:
+  status:
+    desc: Current branch, ahead/behind and uncommitted files
+    spec: parallel
+    cmd: git status --short --branch
+
+  branches:
+    desc: Branches not merged into origin/main, and merged ones still not deleted
+    spec: parallel
+    cmd: |
+      git fetch --quiet --prune origin
+      current=$(git branch --show-current)
+      echo "unmerged local:"
+      git branch --format='  %(refname:short)' --no-merged origin/main
+      echo "unmerged remote:"
+      git branch --remotes --format='  %(refname:short)' --no-merged origin/main
+      echo "merged, not deleted, local:"
+      git branch --format='  %(refname:short)' --merged origin/main | grep -vxE "  (main|$current)" || true
+      echo "merged, not deleted, remote:"
+      git branch --remotes --format='  %(refname:short)' --merged origin/main | grep -vxE '  origin(/main|/HEAD)?' || true
+
+  check:
+    desc: pnpm check and/or scripts/check.sh, whichever the repo has
+    spec: serial
+    cmd: |
+      ran=0
+      if [ -f package.json ] && grep -q '"check":' package.json; then
+        pnpm check
+        ran=1
+      fi
+      if [ -x scripts/check.sh ]; then
+        scripts/check.sh
+        ran=1
+      fi
+      [ "$ran" = 1 ] || echo "[check] $(basename "$PWD"): no pnpm check or scripts/check.sh"
+
+  sync-agents:
+    desc: Write the org repo's shared AGENTS.md block into each repo that has the markers
+    spec: parallel
+    cmd: |
+      if grep -qxF '<!-- shared:start -->' AGENTS.md 2>/dev/null; then
+        ../gtfs-zone-org-root/scripts/sync-agents.sh "$PWD"
+      else
+        echo "[sync-agents] $(basename "$PWD"): no shared block, skipped"
+      fi
+
+  pull:
+    desc: Fetch, then fast-forward the current branch to its upstream
+    spec: parallel
+    cmd: |
+      git fetch --quiet --prune origin
+      if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' > /dev/null 2>&1; then
+        git merge --ff-only '@{upstream}'
+      else
+        echo "[pull] $(git branch --show-current): no upstream, fetched only"
+      fi
